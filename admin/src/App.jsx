@@ -8,7 +8,7 @@ function App() {
   const [openStatusId, setOpenStatusId] = useState(null);
 
   const fetchOrders = async () => {
-    const res = await fetch("http://localhost:5000/api/orders");
+    const res = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/orders`);
     const data = await res.json();
 
     if (previousOrdersRef.current.length > 0) {
@@ -39,7 +39,7 @@ function App() {
   }, []);
 
   const updateStatus = async (id, status) => {
-    await fetch(`http://localhost:5000/api/orders/${id}`, {
+    await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/orders/${id}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ status }),
@@ -49,7 +49,7 @@ function App() {
   };
 
   const confirmOrder = async (id) => {
-  await fetch(`http://localhost:5000/api/orders/${id}/confirm-items`, {
+  await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/orders/${id}/confirm-items`, {
     method: "PUT",
   });
 
