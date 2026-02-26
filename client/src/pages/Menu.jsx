@@ -7,6 +7,7 @@ import confirmedSound from "../assets/confirmed.mp3";
 import preparingSound from "../assets/confirmed.mp3";
 import readySound from "../assets/ready.mp3";
 import cancelledSound from "../assets/cancelled.mp3";
+const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
 export default function Menu() {
   const [activeCategory, setActiveCategory] = useState("All");
@@ -57,7 +58,7 @@ export default function Menu() {
       let response;
 
       if (!orderData) {
-        response = await fetch("http://localhost:5000/api/orders", {
+        response = await fetch(`${BASE_URL}/api/orders`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -67,7 +68,7 @@ export default function Menu() {
         });
       } else {
         response = await fetch(
-          `http://localhost:5000/api/orders/${orderData._id}/add-items`,
+          `${BASE_URL}/api/orders/${orderData._id}/add-items`,
           {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
@@ -75,9 +76,6 @@ export default function Menu() {
           }
         );
       }
-
-      // const updatedOrder = await response.json();
-      // setOrderData(updatedOrder);
       const updatedOrder = await response.json();
 
 if (!response.ok) {
@@ -123,7 +121,7 @@ audio.play().catch(() => {});
 
   useEffect(() => {
 
-  socketRef.current = io("http://localhost:5000");
+  socketRef.current = io(BASE_URL);
   // 🔥 JOIN TABLE ROOM
   socketRef.current.emit("joinTable", Number(tableId));
 
