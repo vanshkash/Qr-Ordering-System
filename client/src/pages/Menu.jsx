@@ -8,6 +8,16 @@ import preparingSound from "../assets/confirmed.mp3";
 import readySound from "../assets/ready.mp3";
 import cancelledSound from "../assets/cancelled.mp3";
 const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+const getSessionId = () => {
+  let id = localStorage.getItem("sessionId");
+
+  if (!id) {
+    id = crypto.randomUUID();
+    localStorage.setItem("sessionId", id);
+  }
+
+  return id;
+};
 
 export default function Menu() {
   const [activeCategory, setActiveCategory] = useState("All");
@@ -64,6 +74,7 @@ export default function Menu() {
           body: JSON.stringify({
             table: Number(tableId),
             items: cart,
+            sessionId: getSessionId()
           }),
         });
       } else {
@@ -78,13 +89,13 @@ export default function Menu() {
       }
       const updatedOrder = await response.json();
 
-if (!response.ok) {
-  console.error(updatedOrder);
-  setToast("Server Error ❌");
-  return;
-}
+      if (!response.ok) {
+        console.error(updatedOrder);
+        setToast("Server Error ❌");
+        return;
+      }
 
-setOrderData(updatedOrder);
+      setOrderData(updatedOrder);
       setCart([]);
       setToast(orderData ? "Additional Items Sent" : "Order Placed Successfully");
 
@@ -116,69 +127,82 @@ setOrderData(updatedOrder);
     }
 
     const audio = new Audio(sound);
-audio.play().catch(() => {});
+    audio.play().catch(() => { });
   };
+useEffect(() => {
+  const sessionId = localStorage.getItem("sessionId");
+  if (!sessionId) return;
 
+  fetch(`${BASE_URL}/api/orders/by-session/${sessionId}`)
+    .then(res => res.json())
+    .then(data => {
+      if (data && data._id) {
+        setOrderData(data);
+      }
+    })
+    .catch(() => {});
+}, []);
   useEffect(() => {
 
-  socketRef.current = io(BASE_URL);
-  // 🔥 JOIN TABLE ROOM
-  socketRef.current.emit("joinTable", Number(tableId));
+    socketRef.current = io(BASE_URL);
+    // 🔥 JOIN TABLE ROOM
+    socketRef.current.emit("joinTable", Number(tableId));
 
-  socketRef.current.on("orderUpdated", (updated) => {
+    socketRef.current.on("orderUpdated", (updated) => {
 
-    setOrderData((prevOrder) => {
+      setOrderData((prevOrder) => {
 
-      if (!prevOrder) return prevOrder; // 🔥 important
+        if (!prevOrder) return prevOrder; // 🔥 important
 
-      if (updated._id !== prevOrder._id)
-        return prevOrder;
+        if (updated._id !== prevOrder._id)
+          return prevOrder;
 
-      // 🔥 STATUS CHANGE
-      if (updated.status !== prevOrder.status) {
+        // 🔥 STATUS CHANGE
+        if (updated.status !== prevOrder.status) {
 
-        if (updated.status === "confirmed") {
-          setToast("Your Order Has Been Confirmed ✅");
-        }
+          if (updated.status === "confirmed") {
+            setToast("Your Order Has Been Confirmed ✅");
+          }
 
-        if (updated.status === "preparing") {
-          setToast("Your Order Is Being Prepared 👨‍🍳");
-        }
+          if (updated.status === "preparing") {
+            setToast("Your Order Is Being Prepared 👨‍🍳");
+          }
 
-        if (updated.status === "ready") {
-          setToast("Your Order Is Ready 🍽");
-        }
+          if (updated.status === "ready") {
+            setToast("Your Order Is Ready 🍽");
+          }
 
-        if (updated.status === "cancelled") {
-          setToast("Your Order Was Cancelled ❌");
-        }
+          if (updated.status === "cancelled") {
+            setToast("Your Order Was Cancelled ❌");
+          }
 
-        playStatusSound(updated.status);
-        setTimeout(() => setToast(null), 3000);
-      }
-
-      // 🔥 NEW ITEMS CONFIRM
-      if (
-        updated.lastAction &&
-        updated.lastAction !== prevOrder.lastAction
-      ) {
-        if (updated.lastAction.startsWith("items_confirmed")) {
-          setToast("Kitchen Confirmed Your Items ✅");
-          playStatusSound("confirmed");
+          playStatusSound(updated.status);
           setTimeout(() => setToast(null), 3000);
         }
-      }
 
-      return updated;
+        // 🔥 NEW ITEMS CONFIRM
+        if (
+          updated.lastAction &&
+          updated.lastAction !== prevOrder.lastAction
+        ) {
+          if (updated.lastAction.startsWith("items_confirmed")) {
+            setToast("Kitchen Confirmed Your Items ✅");
+            playStatusSound("confirmed");
+            setTimeout(() => setToast(null), 3000);
+          }
+        }
+
+        return updated;
+      });
+
     });
+    
 
-  });
+    return () => {
+      socketRef.current.disconnect();
+    };
 
-  return () => {
-    socketRef.current.disconnect();
-  };
-
-}, []);
+  }, []);
 
 
 

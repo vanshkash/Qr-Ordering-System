@@ -1,18 +1,45 @@
 const express = require("express");
 const router = express.Router();
 const Order = require("../models/order");
+// GET - Order by Session
+router.get("/by-session/:sessionId", async (req, res) => {
+  try {
+    const order = await Order.findOne({
+      sessionId: req.params.sessionId,
+      status: { $ne: "cancelled" }
+    }).sort({ createdAt: -1 });
 
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching order by session" });
+  }
+});
+// GET - Single Order by ID
+router.get("/:id", async (req, res) => {
+  try {
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    res.json(order);
+  } catch (error) {
+    res.status(500).json({ message: "Error fetching order" });
+  }
+});
 // POST - Create Order
 router.post("/", async (req, res) => {
   try {
     // console.log("BODY RECEIVED:", req.body);
 
-    const { table, items } = req.body;
+    const { table, items, sessionId } = req.body;
 
     const newOrder = new Order({
       table,
       items,
       status: "pending", // 🔥 force add this
+      sessionId
     });
 
     const savedOrder = await newOrder.save();
@@ -28,20 +55,6 @@ router.post("/", async (req, res) => {
   }
 });
 
-// GET - Single Order by ID
-router.get("/:id", async (req, res) => {
-  try {
-    const order = await Order.findById(req.params.id);
-
-    if (!order) {
-      return res.status(404).json({ message: "Order not found" });
-    }
-
-    res.json(order);
-  } catch (error) {
-    res.status(500).json({ message: "Error fetching order" });
-  }
-});
 
 
 // PUT - Update Order Status

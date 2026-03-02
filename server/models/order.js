@@ -18,9 +18,13 @@ const orderSchema = new mongoose.Schema(
       default: "pending",
     },
     lastAction: {
-  type: String,
-  default: "",
-},
+      type: String,
+      default: "",
+    },
+    sessionId: {
+      type: String,
+      index: true
+    }
 
   },
   { timestamps: true }
