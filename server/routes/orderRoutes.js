@@ -1,12 +1,31 @@
 const express = require("express");
 const router = express.Router();
 const Order = require("../models/order");
+
+// ⭐ ADD THIS FUNCTION HERE
+async function generateOrderId() {
+
+  let orderId;
+  let exists = true;
+
+  while (exists) {
+    orderId = Math.floor(1000 + Math.random() * 9000);
+    const order = await Order.findOne({ orderId });
+
+    if (!order) {
+      exists = false;
+    }
+  }
+
+  return orderId;
+}
+
 // GET - Order by Session
 router.get("/by-session/:sessionId", async (req, res) => {
   try {
     const order = await Order.findOne({
       sessionId: req.params.sessionId,
-      status: { $ne: "cancelled" }
+      status: { $nin: ["completed", "cancelled"] },
     }).sort({ createdAt: -1 });
 
     res.json(order);
@@ -35,10 +54,13 @@ router.post("/", async (req, res) => {
 
     const { table, items, sessionId } = req.body;
 
+    const orderId = await generateOrderId();
+
     const newOrder = new Order({
+      orderId,
       table,
       items,
-      status: "pending", // 🔥 force add this
+      status: "pending",
       sessionId
     });
 
@@ -103,7 +125,7 @@ router.put("/:id/add-items", async (req, res) => {
     order.items.push(...items);
 
     await order.save();
-     // ✅ ADD HERE
+    // ✅ ADD HERE
     const io = req.app.get("io");
     io.emit("orderUpdated", order);
 
@@ -128,6 +150,24 @@ router.put("/:id/confirm-items", async (req, res) => {
     res.json(updatedOrder);
   } catch (error) {
     res.status(500).json({ message: "Error confirming items" });
+  }
+});
+// DELETE ORDER
+router.delete("/:id", async (req, res) => {
+  try {
+    const deletedOrder = await Order.findByIdAndDelete(req.params.id);
+
+    if (!deletedOrder) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // 🔥 Optional: Emit socket update
+    const io = req.app.get("io");
+    io.emit("orderDeleted", deletedOrder._id);
+
+    res.json({ message: "Order deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
   }
 });
 module.exports = router;

@@ -2,6 +2,10 @@ const mongoose = require("mongoose");
 
 const orderSchema = new mongoose.Schema(
   {
+    orderId: {
+      type: Number,
+      unique: true
+    },
     table: {
       type: Number,
       required: true,
