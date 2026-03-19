@@ -1,12 +1,11 @@
 import { useState, useRef, useEffect } from "react";
-import menuData from "../data/menuData";
-
-export default function Navbar({ onSearch }) {
+import { Link, useParams } from "react-router-dom";
+export default function Navbar({ onSearch, allItems = [] }) {
 
   const [search, setSearch] = useState("");
   const [showMenu, setShowMenu] = useState(false);
   const [suggestions, setSuggestions] = useState([]);
-
+const { tableId } = useParams();
   const menuRef = useRef(null);
 
   const handleSearch = (e) => {
@@ -22,9 +21,6 @@ export default function Navbar({ onSearch }) {
       setSuggestions([]);
       return;
     }
-
-    const allItems = menuData.flatMap(cat => cat.items);
-
     const filtered = allItems
       .filter(item =>
         item.name.toLowerCase().includes(value.toLowerCase())
@@ -99,7 +95,7 @@ export default function Navbar({ onSearch }) {
 
 
         {/* CENTER : SEARCH */}
-        <div className="relative w-32">
+        <div className="relative w-28">
 
           {/* SEARCH ICON */}
           <i className="fa-solid fa-magnifying-glass absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"></i>
@@ -123,14 +119,14 @@ export default function Navbar({ onSearch }) {
           {/* SEARCH SUGGESTIONS */}
           {suggestions.length > 0 && (
 
-            <div className="absolute top-11 left-0 w-full bg-white border rounded-lg shadow-lg z-50">
+            <div className="absolute top-11 left-0 min-w-[200px] bg-white border rounded-xl shadow-xl z-50">
 
               {suggestions.map(item => (
 
                 <div
-                  key={item.id}
+                  key={item._id || item.id}
                   onClick={() => selectSuggestion(item.name)}
-                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm"
+                  className="px-4 py-2 hover:bg-gray-100 cursor-pointer text-sm whitespace-nowrap"
                 >
                   {item.name}
                 </div>
@@ -149,7 +145,7 @@ export default function Navbar({ onSearch }) {
 
           {/* INSTAGRAM */}
           <a
-            href="https://www.instagram.com/nomadic__jatin/"
+            href="https://www.instagram.com/bhukkad_hapur/"
             target="_blank"
           >
             <img
@@ -180,32 +176,36 @@ export default function Navbar({ onSearch }) {
 
             <div className="absolute right-0 top-10 bg-white shadow-lg border rounded-lg w-40 py-2">
 
-              <a
-                href="#"
-                className="block px-4 py-2 hover:bg-gray-100 text-sm"
-              >
-                About
-              </a>
+              <Link
+  to={`/about/${tableId}`}
+  onClick={() => setShowMenu(false)}
+  className="block px-4 py-2 hover:bg-gray-100 text-sm"
+>
+  About
+</Link>
 
               <a
-                href="tel:+919999999999"
+                href="tel:+917983202009"
                 className="block px-4 py-2 hover:bg-gray-100 text-sm"
+                onClick={() => setShowMenu(false)}
               >
                 Contact
               </a>
 
               <a
-                href="https://wa.me/919999999999"
+                href="https://wa.me/917983202009"
                 target="_blank"
                 className="block px-4 py-2 hover:bg-gray-100 text-sm"
+                onClick={() => setShowMenu(false)}
               >
                 WhatsApp
               </a>
 
               <a
-                href="https://instagram.com"
+                href="https://www.instagram.com/bhukkad_hapur/"
                 target="_blank"
                 className="block px-4 py-2 hover:bg-gray-100 text-sm"
+                onClick={() => setShowMenu(false)}
               >
                 Instagram
               </a>

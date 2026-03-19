@@ -1,11 +1,17 @@
-import { useState } from "react";
-import { comboData } from "../data/menuData";
-
+import { useState, useEffect } from "react";
 export default function MostOrdered({ addToCart }) {
 
     const [selectedCombo, setSelectedCombo] = useState(null);
     const [qtyMap, setQtyMap] = useState({});
     const [variantMap, setVariantMap] = useState({});
+    const [combos, setCombos] = useState([]);
+    const BASE_URL = import.meta.env.VITE_BACKEND_URL;
+
+    useEffect(() => {
+        fetch(`${BASE_URL}/api/combos`)
+            .then(res => res.json())
+            .then(data => setCombos(data));
+    }, []);
 
     // TOTAL PRICE CALCULATION
     const totalPrice = selectedCombo?.items.reduce((sum, item, index) => {
@@ -14,11 +20,11 @@ export default function MostOrdered({ addToCart }) {
 
         const variant =
             variantMap[index] ||
-            item.variants?.find(v => v.type === "Full") ||
-            item.variants?.[0];
+            item.menuItemId.variants?.find(v => v.type === "Full") ||
+            item.menuItemId.variants?.[0];
 
         const price =
-            variant?.price || item.price;
+            variant?.price || item.menuItemId.price;
 
         return sum + price * qty;
 
@@ -41,38 +47,38 @@ export default function MostOrdered({ addToCart }) {
     // ADD COMBO ITEMS TO CART
     const handleAddCombo = () => {
 
-  selectedCombo.items.forEach((item, index) => {
+        selectedCombo.items.forEach((item, index) => {
 
-    const qty = qtyMap[index] || 1;
+            const qty = qtyMap[index] || 1;
 
-    const variant =
-      variantMap[index] ||
-      item.variants?.find(v => v.type === "Full") ||
-      item.variants?.[0];
+            const variant =
+                variantMap[index] ||
+                item.menuItemId.variants?.find(v => v.type === "Full") ||
+                item.menuItemId.variants?.[0];
 
-    addToCart({
+            addToCart({
 
-      id: `${item.name}-${variant?.type}-${Date.now()}`,
+                id: `${item.menuItemId._id}-${variant?.type}-${Date.now()}`,
 
-      name: variant
-        ? `${item.name} (${variant.type})`
-        : item.name,
+                name: variant
+                    ? `${item.menuItemId.name} (${variant.type})`
+                    : item.menuItemId.name,
 
-      price: variant?.price || item.price,
+                price: variant?.price || item.menuItemId.price,
 
-      qty: qty,
+                qty: qty,
 
-      note: "combo"
+                note: "combo"
 
-    });
+            });
 
-  });
+        });
 
-  setSelectedCombo(null);
-  setQtyMap({});
-  setVariantMap({});
+        setSelectedCombo(null);
+        setQtyMap({});
+        setVariantMap({});
 
-};
+    };
 
     return (
 
@@ -84,24 +90,24 @@ export default function MostOrdered({ addToCart }) {
 
             <div className="flex gap-4 overflow-x-auto">
 
-                {comboData.map((combo) => (
+                {combos.map((combo) => (
 
                     <div
-                        key={combo.id}
+                        key={combo._id}
                         className="min-w-[250px] bg-white rounded-xl border border-gray-400 shadow-sm p-3"
                     >
 
                         <div className="flex items-center gap-2">
 
                             <img
-                                src={combo.items[0].image}
+                                src={combo.items[0]?.menuItemId?.image}
                                 className="w-24 h-24 object-cover rounded-lg"
                             />
 
                             <span className="text-xl font-bold">+</span>
 
                             <img
-                                src={combo.items[1].image}
+                                src={combo.items[1]?.menuItemId?.image}
                                 className="w-24 h-24 object-cover rounded-lg"
                             />
 
@@ -159,7 +165,7 @@ export default function MostOrdered({ addToCart }) {
                         {/* IMAGE */}
 
                         <img
-                            src={selectedCombo.items[0].image}
+                            src={selectedCombo.items[0]?.menuItemId?.image}
                             className="w-full h-48 object-cover rounded-xl"
                         />
 
@@ -172,10 +178,13 @@ export default function MostOrdered({ addToCart }) {
 
                         {selectedCombo.items.map((item, index) => {
 
+                            if (!item.menuItemId) return null; // ⭐ MAIN FIX
+
+
                             const selectedVariant =
                                 variantMap[index] ||
-                                item.variants?.find(v => v.type === "Full") ||
-                                item.variants?.[0];
+                                item.menuItemId.variants?.find(v => v.type === "Full") ||
+                                item.menuItemId.variants?.[0];
 
                             return (
 
@@ -187,22 +196,22 @@ export default function MostOrdered({ addToCart }) {
                                     <div className="flex items-center gap-3">
 
                                         <img
-                                            src={item.image}
+                                            src={item.menuItemId.image}
                                             className="w-12 h-12 rounded"
                                         />
 
                                         <div>
 
-                                            <span>{item.name}</span>
+                                            <span>{item.menuItemId.name}</span>
 
-                                            {item.variants && (
+                                            {item.menuItemId.variants?.length > 0 && (
 
                                                 <select
                                                     className="border text-sm rounded mt-1"
                                                     value={selectedVariant?.type}
                                                     onChange={(e) => {
 
-                                                        const v = item.variants.find(
+                                                        const v = item.menuItemId.variants.find(
                                                             x => x.type === e.target.value
                                                         );
 
@@ -214,7 +223,7 @@ export default function MostOrdered({ addToCart }) {
                                                     }}
                                                 >
 
-                                                    {item.variants.map(v => (
+                                                    {item.menuItemId.variants.map(v => (
 
                                                         <option
                                                             key={v.type}
@@ -230,7 +239,7 @@ export default function MostOrdered({ addToCart }) {
                                             )}
 
                                             <p className="text-gray-500 text-sm">
-                                                ₹{selectedVariant?.price || item.price}
+                                                ₹{selectedVariant?.price || item.menuItemId.price}
                                             </p>
 
                                         </div>

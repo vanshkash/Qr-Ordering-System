@@ -1,5 +1,4 @@
-import { useState } from "react";
-
+import { useState, useEffect } from "react";
 export default function FoodCard({
   item,
   addToCart,
@@ -10,14 +9,26 @@ export default function FoodCard({
 
   const [showModal, setShowModal] = useState(false);
   const [qty, setQty] = useState(1);
-  const cartItem = cart.find((i) => i.id === item.id);
+  const cartItem = cart.find((i) => i.id === item._id);
   const [selectedVariant, setSelectedVariant] = useState(
-    item.variants ? item.variants[0] : null
+    item?.variants?.length ? item.variants[0] : null
   );
+
+  useEffect(() => {
+    if (showModal) {
+      setSelectedVariant(item?.variants?.[0] || null);
+    }
+  }, [showModal, item]);
 
   return (
     <>
-      <div className="bg-white shadow-lg rounded-xl p-3">
+      <div className={`shadow-lg rounded-xl p-3 relative 
+${item.available ? "bg-white" : "bg-gray-200 opacity-70"}`}>
+  {!item.available && (
+<div className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-1 rounded">
+Out of Stock
+</div>
+)}
         <img
           src={item.image}
           alt={item.name}
@@ -30,15 +41,21 @@ export default function FoodCard({
 
         {/* If Item Has Variants */}
         <p className="text-gray-500">
-          ₹{item.variants ? selectedVariant?.price : item.price}
+          ₹{item.variants?.length
+            ? (selectedVariant?.price || item.variants[0]?.price)
+            : item.price}
         </p>
 
         <button
-          onClick={() => setShowModal(true)}
-          className="mt-2 w-full bg-black text-white py-1 rounded-lg"
-        >
-          Add
-        </button>
+disabled={!item.available}
+onClick={() => item.available && setShowModal(true)}
+className={`mt-2 w-full py-1 rounded-lg 
+${item.available 
+? "bg-black text-white" 
+: "bg-gray-400 text-gray-700 cursor-not-allowed"}`}
+>
+{item.available ? "Add" : "Out of Stock"}
+</button>
       </div>
 
       {/* 🔥 MODAL */}
@@ -87,7 +104,7 @@ export default function FoodCard({
                   Quantity
                 </h3>
 
-                {item.variants && item.variants.map((variant, index) => (
+                {item.variants?.length > 0 && item.variants.map((variant, index) => (
                   <label
                     key={index}
                     className="flex justify-between items-center border rounded-xl p-4 mb-3 cursor-pointer"
@@ -95,7 +112,7 @@ export default function FoodCard({
                     <div className="flex items-center gap-3">
                       <input
                         type="radio"
-                        name={`variant-${item.id}`}
+                        name={`variant-${item._id}`}
                         checked={selectedVariant?.type === variant.type}
                         onChange={() => setSelectedVariant(variant)}
                         className="w-5 h-5 accent-red-500"
@@ -141,14 +158,21 @@ export default function FoodCard({
 
               {/* ADD BUTTON */}
               <button
-                disabled={item.variants && !selectedVariant}
+                disabled={item.variants?.length > 0 && !selectedVariant}
                 onClick={() => {
                   addToCart({
-                    id: item.variants ? `${item.id}-${selectedVariant.type}` : item.id,
-                    name: item.variants
-                      ? `${item.name} (${selectedVariant.type})`
+                    id: item.variants?.length
+                      ? `${item._id}-${selectedVariant?.type}`
+                      : item._id,
+
+                    name: item.variants?.length
+                      ? `${item.name} (${selectedVariant?.type})`
                       : item.name,
-                    price: item.variants ? selectedVariant.price : item.price,
+
+                    price: item.variants?.length
+                      ? (selectedVariant?.price || 0)
+                      : item.price,
+
                     qty
                   });
 
@@ -160,9 +184,9 @@ export default function FoodCard({
                 className="ml-4 flex-1 bg-red-500 text-white py-3 rounded-xl font-semibold disabled:bg-gray-300"
               >
                 Add Item ₹
-                {item.variants
-                  ? selectedVariant.price * qty
-                  : item.price * qty}
+                {item.variants?.length
+                  ? (selectedVariant?.price || item.variants[0]?.price || 0) * qty
+                  : (item.price || 0) * qty}
               </button>
 
             </div>

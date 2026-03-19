@@ -50,19 +50,55 @@ router.get("/:id", async (req, res) => {
 // POST - Create Order
 router.post("/", async (req, res) => {
   try {
-    // console.log("BODY RECEIVED:", req.body);
+
+    const status = req.app.get("kitchenStatus");
+
+    if (status === "offline") {
+      return res.status(503).json({
+        message: "Kitchen is offline"
+      });
+    }
 
     const { table, items, sessionId } = req.body;
 
+    // ⭐ check existing order
+    let existingOrder = await Order.findOne({
+      sessionId,
+      status: { $nin: ["completed", "cancelled"] }
+    });
+
+    if (existingOrder) {
+
+      const newItems = items.map(item => ({
+  ...item,
+  confirmed: false
+}));
+
+existingOrder.items.push(...newItems);
+      await existingOrder.save();
+
+      const io = req.app.get("io");
+      io.emit("orderUpdated", existingOrder);
+
+      return res.json(existingOrder);
+    }
+
+    // ⭐ create new order
     const orderId = await generateOrderId();
 
-    const newOrder = new Order({
-      orderId,
-      table,
-      items,
-      status: "pending",
-      sessionId
-    });
+    const itemsWithConfirm = items.map(item => ({
+  ...item,
+  confirmed: true
+}));
+
+const newOrder = new Order({
+  orderId,
+  table,
+  items: itemsWithConfirm,
+  status: "pending",
+  sessionId,
+  confirmedItems: items.length
+});
 
     const savedOrder = await newOrder.save();
 
@@ -72,7 +108,6 @@ router.post("/", async (req, res) => {
     res.status(201).json(savedOrder);
 
   } catch (error) {
-    // console.log("CREATE ORDER ERROR:", error); // 🔥 MUST print
     res.status(500).json({ message: "Error creating order" });
   }
 });
@@ -137,20 +172,31 @@ router.put("/:id/add-items", async (req, res) => {
 
 // PUT - Confirm New Items (Kitchen)
 router.put("/:id/confirm-items", async (req, res) => {
-  try {
-    const updatedOrder = await Order.findByIdAndUpdate(
-      req.params.id,
-      { lastAction: `items_confirmed_${Date.now()}` },
-      { new: true }
-    );
-    // ✅ ADD HERE
-    const io = req.app.get("io");
-    io.emit("orderUpdated", updatedOrder);
 
-    res.json(updatedOrder);
+  try {
+
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // ⭐ yaha main logic hai
+    order.confirmedItems = order.items.length;
+
+    await order.save();
+
+    const io = req.app.get("io");
+    io.emit("orderUpdated", order);
+
+    res.json(order);
+
   } catch (error) {
+
     res.status(500).json({ message: "Error confirming items" });
+
   }
+
 });
 // DELETE ORDER
 router.delete("/:id", async (req, res) => {
@@ -169,5 +215,71 @@ router.delete("/:id", async (req, res) => {
   } catch (error) {
     res.status(500).json({ message: "Server error" });
   }
+});
+router.put("/:id/mark-paid", async (req, res) => {
+
+  const order = await Order.findById(req.params.id);
+
+  if (!order) {
+    return res.status(404).json({ message: "Order not found" });
+  }
+
+  order.paymentStatus = "paid";
+  await order.save();
+
+  const io = req.app.get("io");
+  io.emit("orderUpdated", order);
+
+  res.json(order);
+
+});
+router.put("/:id/item-ready", async (req, res) => {
+
+  const { itemIndex } = req.body;
+
+  const order = await Order.findById(req.params.id);
+
+  order.items[itemIndex].cookingReady = true;
+
+  await order.save();
+
+  res.json(order);
+
+});
+router.put("/:id/item-served", async (req, res) => {
+
+  const { itemIndex } = req.body;
+
+  const order = await Order.findById(req.params.id);
+
+  order.items[itemIndex].served = true;
+
+  await order.save();
+
+  const io = req.app.get("io");
+  io.emit("orderUpdated", order);
+
+  res.json(order);
+
+});
+router.put("/:id/confirm-item", async (req, res) => {
+
+  const { itemIndex } = req.body;
+
+  const order = await Order.findById(req.params.id);
+
+  if (!order) {
+    return res.status(404).json({ message: "Order not found" });
+  }
+
+  order.items[itemIndex].confirmed = true;
+
+  await order.save();
+
+  const io = req.app.get("io");
+  io.emit("orderUpdated", order);
+
+  res.json(order);
+
 });
 module.exports = router;
