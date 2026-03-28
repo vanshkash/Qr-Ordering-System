@@ -12,27 +12,34 @@ function App() {
 
   return (
     <>
-      <Navbar
-        onSearch={setSearch}
-        allItems={menuItems}
-      />
 
       <Routes>
-        <Route path="/" element={<Navigate to="/menu/1" />} />
 
-        <Route
-          path="/menu/:tableId"
-          element={
-            <Menu
-              search={search}
-              setMenuItems={setMenuItems}
-            />
-          }
-        />
+  <Route path="/" element={<Navigate to="/menu/1" />} />
 
-        <Route path="/track/:orderId" element={<TrackOrder />} />
-        <Route path="/about/:tableId" element={<About />} />
-      </Routes>
+  <Route
+    path="/menu/:tableId"
+    element={
+      <>
+        <Navbar onSearch={setSearch} allItems={menuItems} />
+        <Menu search={search} setMenuItems={setMenuItems} />
+      </>
+    }
+  />
+
+  <Route
+    path="/about/:tableId"
+    element={
+      <>
+        <Navbar onSearch={setSearch} allItems={menuItems} />
+        <About />
+      </>
+    }
+  />
+
+  <Route path="/track/:orderId" element={<TrackOrder />} />
+
+</Routes>
     </>
   );
 }

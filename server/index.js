@@ -1,3 +1,4 @@
+// index.js
 const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
@@ -18,28 +19,8 @@ app.use(express.json());
 app.use("/api/orders", orderRoutes);
 app.use("/api/menu", menuRoutes);
 app.use("/api/combos", comboRoutes);
+app.set("kitchenStatus", "offline");
 
-// ⭐ Kitchen Status
-app.set("kitchenStatus", "online");
-
-// Toggle API
-app.post("/api/kitchen-status", (req, res) => {
-
-  const { status } = req.body;
-
-  if (!["online", "offline"].includes(status)) {
-    return res.status(400).json({
-      message: "Invalid kitchen status"
-    });
-  }
-
-  req.app.set("kitchenStatus", status);
-
-  res.json({
-    message: `Kitchen is now ${status}`
-  });
-
-});
 
 // 🔥 SOCKET.IO
 const io = new Server(server, {
@@ -65,6 +46,11 @@ io.on("connection", (socket) => {
     console.log("Client Disconnected:", socket.id);
   });
 
+});
+
+// for ping or health check to prevent idling on platforms like Render
+app.get("/health", (req, res) => {
+  res.send("OK");
 });
 
 const PORT = process.env.PORT || 5000;

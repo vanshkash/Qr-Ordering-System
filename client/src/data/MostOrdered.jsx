@@ -1,12 +1,31 @@
 import { useState, useEffect } from "react";
+import { useRef } from "react";
 export default function MostOrdered({ addToCart }) {
 
     const [selectedCombo, setSelectedCombo] = useState(null);
     const [qtyMap, setQtyMap] = useState({});
     const [variantMap, setVariantMap] = useState({});
     const [combos, setCombos] = useState([]);
+    const scrollRef = useRef(null);
     const BASE_URL = import.meta.env.VITE_BACKEND_URL;
 
+    useEffect(() => {
+  const container = scrollRef.current;
+
+  if (!container) return;
+
+  const scroll = () => {
+    if (container.scrollLeft >= container.scrollWidth - container.clientWidth) {
+      container.scrollLeft = 0; // reset (loop)
+    } else {
+      container.scrollLeft += 1; // speed control
+    }
+  };
+
+  const interval = setInterval(scroll, 20); // smooth speed
+
+  return () => clearInterval(interval);
+}, []);
     useEffect(() => {
         fetch(`${BASE_URL}/api/combos`)
             .then(res => res.json())
@@ -82,22 +101,25 @@ export default function MostOrdered({ addToCart }) {
 
     return (
 
-        <div className="mt-6 px-3">
+        <div className="mt-2 px-1">
 
-            <h2 className="text-xl font-bold mb-3">
+            <h2 className="text-xl font-bold mb-1">
                 Most ordered together
             </h2>
 
-            <div className="flex gap-4 overflow-x-auto">
+            <div
+  ref={scrollRef}
+  className="flex gap-4 overflow-x-auto scrollbar-hide"
+>
 
                 {combos.map((combo) => (
 
                     <div
                         key={combo._id}
-                        className="min-w-[250px] bg-white rounded-xl border border-gray-400 shadow-sm p-3"
+                        className="min-w-[230px] bg-white rounded-xl border border-gray-400 shadow-sm p-2"
                     >
 
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
 
                             <img
                                 src={combo.items[0]?.menuItemId?.image}
@@ -113,7 +135,7 @@ export default function MostOrdered({ addToCart }) {
 
                         </div>
 
-                        <p className="text-sm text-green-700 mt-2">
+                        <p className="text-xs text-green-700 mt-1">
                             Ordered by {combo.ordered}
                         </p>
 
@@ -121,7 +143,7 @@ export default function MostOrdered({ addToCart }) {
                             {combo.name}
                         </h3>
 
-                        <div className="flex justify-between items-center mt-3">
+                        <div className="flex justify-between items-center mt-2">
 
                             <span className="font-bold">
                                 ₹{combo.price}
@@ -129,7 +151,7 @@ export default function MostOrdered({ addToCart }) {
 
                             <button
                                 onClick={() => setSelectedCombo(combo)}
-                                className="border border-red-500 text-red-500 px-3 py-1 rounded-lg"
+                                className="border border-red-500 text-red-500 px-2 py-[2px] text-xs rounded-md"
                             >
                                 See items
                             </button>

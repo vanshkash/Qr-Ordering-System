@@ -1,12 +1,14 @@
+import { X } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import newOrderSound from "./assets/new-order.mp3";
+import { io } from "socket.io-client";
+import { Trash2 } from "lucide-react";
 function App() {
+  const BASE_URL = import.meta.env.VITE_BACKEND_URL;
   const audioRef = useRef(null);
   const [orders, setOrders] = useState([]);
   const previousOrdersRef = useRef([]);
   const [openStatusId, setOpenStatusId] = useState(null);
-  const BASE_URL = import.meta.env.VITE_BACKEND_URL;
-
   const [menu, setMenu] = useState([]);
   const [showStockManager, setShowStockManager] = useState(false);
   const [showAddItem, setShowAddItem] = useState(false);
@@ -20,9 +22,13 @@ function App() {
   const [showStatusModal, setShowStatusModal] = useState(false);
   const [statusAction, setStatusAction] = useState(null);
   const [orderToUpdate, setOrderToUpdate] = useState(null);
-  const [kitchenStatus, setKitchenStatus] = useState(
-    localStorage.getItem("kitchenStatus") || "online"
-  );
+  const [activeTab, setActiveTab] = useState("all");
+  const [searchId, setSearchId] = useState("");
+  const [editingOrder, setEditingOrder] = useState(null);
+  const [editedItems, setEditedItems] = useState([]);
+  const [confirmItemAction, setConfirmItemAction] = useState(null);
+  const [searchStatus, setSearchStatus] = useState("preparing");
+  const [kitchenStatus, setKitchenStatus] = useState("online");
   const markItemReady = async (orderId, itemIndex) => {
 
     await fetch(`${BASE_URL}/api/orders/${orderId}/item-ready`, {
@@ -36,8 +42,35 @@ function App() {
     fetchOrders();
 
   };
+  useEffect(() => {
+    fetch(`${BASE_URL}/api/orders/kitchen-status`)
+      .then(res => res.json())
+      .then(data => setKitchenStatus(data.status));
+  }, []);
+  useEffect(() => {
+    const socket = io(BASE_URL);
+
+    socket.on("kitchenStatusUpdated", (status) => {
+      setKitchenStatus(status);
+    });
+
+    return () => socket.disconnect();
+  }, []);
   const markItemServed = async (orderId, itemIndex) => {
 
+    // ✅ 1. INSTANT UI UPDATE
+    setOrders(prev =>
+      prev.map(order => {
+        if (order._id !== orderId) return order;
+
+        const updatedItems = [...order.items];
+        updatedItems[itemIndex].served = true;
+
+        return { ...order, items: updatedItems };
+      })
+    );
+
+    // ✅ 2. BACKEND CALL
     await fetch(`${BASE_URL}/api/orders/${orderId}/item-served`, {
       method: "PUT",
       headers: {
@@ -46,8 +79,6 @@ function App() {
       body: JSON.stringify({ itemIndex })
     });
 
-    fetchOrders();
-
   };
   const toggleKitchen = async () => {
 
@@ -55,7 +86,7 @@ function App() {
       ? "offline"
       : "online";
 
-    await fetch(`${BASE_URL}/api/kitchen-status`, {
+    await fetch(`${BASE_URL}/api/orders/kitchen-status`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json"
@@ -127,16 +158,6 @@ function App() {
 
     fetchMenu();
 
-  };
-  const validateImageUrl = (url) => {
-    return new Promise((resolve) => {
-      const img = new Image();
-
-      img.onload = () => resolve(true);
-      img.onerror = () => resolve(false);
-
-      img.src = url;
-    });
   };
 
   const addVariantField = () => {
@@ -248,10 +269,6 @@ function App() {
 
     fetchOrders();
 
-    const interval = setInterval(fetchOrders, 4000);
-
-    return () => clearInterval(interval);
-
   }, []);
 
   const updateStatus = async (id, status) => {
@@ -271,65 +288,65 @@ function App() {
 
     fetchOrders();
   };
- const markPaid = async (id) => {
+  const markPaid = async (id) => {
 
-  try {
+    try {
 
-    await fetch(`${BASE_URL}/api/orders/${id}/mark-paid`, {
-      method: "PUT"
-    });
+      await fetch(`${BASE_URL}/api/orders/${id}/mark-paid`, {
+        method: "PUT"
+      });
 
-    // ⭐ force ready state
-    await fetch(`${BASE_URL}/api/orders/${id}`, {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({ status: "ready" })
-    });
-
-    fetchOrders();
-
-    setToast("Payment Completed 💳");
-
-    setTimeout(() => setToast(null), 2000);
-
-    // ⭐ AUTO COMPLETE AFTER 4 SEC
-    setTimeout(async () => {
-
+      // ⭐ force ready state
       await fetch(`${BASE_URL}/api/orders/${id}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json"
         },
-        body: JSON.stringify({ status: "completed" })
+        body: JSON.stringify({ status: "ready" })
       });
 
       fetchOrders();
 
-    }, 4000);
+      setToast("Payment Completed 💳");
 
-  } catch (error) {
+      setTimeout(() => setToast(null), 2000);
 
-    console.error("Payment update failed", error);
+      // ⭐ AUTO COMPLETE AFTER 4 SEC
+      setTimeout(async () => {
 
-  }
+        await fetch(`${BASE_URL}/api/orders/${id}`, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ status: "completed" })
+        });
 
-};
+        fetchOrders();
+
+      }, 4000);
+
+    } catch (error) {
+
+      console.error("Payment update failed", error);
+
+    }
+
+  };
 
   const confirmItem = async (orderId, itemIndex) => {
 
-  await fetch(`${BASE_URL}/api/orders/${orderId}/confirm-item`, {
-    method: "PUT",
-    headers: {
-      "Content-Type": "application/json"
-    },
-    body: JSON.stringify({ itemIndex })
-  });
+    await fetch(`${BASE_URL}/api/orders/${orderId}/confirm-item`, {
+      method: "PUT",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ itemIndex })
+    });
 
-  fetchOrders();
+    fetchOrders();
 
-};
+  };
   const deleteOrder = async (id) => {
     try {
       await fetch(`${BASE_URL}/api/orders/${id}`, {
@@ -362,6 +379,8 @@ function App() {
         return "bg-purple-300 text-purple-800";
       case "cancelled":
         return "bg-red-300 text-red-900";
+      case "partial":
+        return "bg-yellow-300 text-yellow-900";
       default:
         return "bg-gray-100 text-gray-800";
     }
@@ -381,6 +400,8 @@ function App() {
         return "bg-purple-100 border-2 border-purple-500 opacity-70";
       case "cancelled":
         return "bg-red-100 border-2 border-red-500 opacity-60";
+      case "partial":
+        return "bg-yellow-100 border-2 border-yellow-500";
       default:
         return "bg-white";
     }
@@ -428,6 +449,8 @@ function App() {
         return "Cooking";
       case "ready":
         return "Ready";
+      case "partial":
+        return "Almost Ready";
       default:
         return "Time";
     }
@@ -439,6 +462,29 @@ function App() {
 
     return () => clearInterval(interval);
   }, []);
+  useEffect(() => {
+    const socket = io(BASE_URL);
+
+    socket.on("orderUpdated", (updatedOrder) => {
+      setOrders(prev => {
+        const exists = prev.find(o => o._id === updatedOrder._id);
+
+        if (exists) {
+          return prev.map(o =>
+            o._id === updatedOrder._id ? updatedOrder : o
+          );
+        } else {
+          return [updatedOrder, ...prev];
+        }
+      });
+    });
+
+    socket.on("orderDeleted", (deletedId) => {
+      setOrders(prev => prev.filter(o => o._id !== deletedId));
+    });
+
+    return () => socket.disconnect();
+  }, []);
 
   const confirmStatusUpdate = async () => {
     if (!orderToUpdate || !statusAction) return;
@@ -449,23 +495,97 @@ function App() {
     setOrderToUpdate(null);
     setStatusAction(null);
   };
+  const getDisplayStatus = (order) => {
+    const total = order.items.filter(i => !i.rejected).length;
+    const readyCount = order.items.filter(i => i.cookingReady).length;
+
+    if (readyCount === 0) return order.status;
+
+    if (readyCount === total) return "ready";
+
+    return "partial";
+  };
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
+    <div className="p-1 bg-gray-100 min-h-screen">
       {toast && (
         <div className="fixed top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-green-500 text-white px-6 py-3 rounded-xl shadow-xl z-50 animate-bounce">
           {toast}
         </div>
       )}
       <audio ref={audioRef} src={newOrderSound} preload="auto" />
-      <div className="flex justify-between items-center mb-6">
+      <div className="flex justify-between items-center mx-2">
 
-        <h1 className="text-2xl font-bold">
-          Kitchen Dashboard 🍽
-        </h1>
+        <div className="flex items-center gap-2">
+
+          {/* 📱 Mobile → Only Logo */}
+          <img
+            src="https://www.shutterstock.com/image-vector/vector-kitchen-logo-main-icon-260nw-2030675225.jpg"
+            alt="Logo"
+            className="block md:hidden h-8 object-contain"
+          />
+
+          {/* 💻 Desktop → Text + Logo */}
+          <div className="hidden md:flex items-center gap-2">
+
+            <h1 className="text-lg font-bold">
+              Kitchen Dashboard
+            </h1>
+
+            <img
+              src="https://www.shutterstock.com/image-vector/vector-kitchen-logo-main-icon-260nw-2030675225.jpg"
+              alt="Logo"
+              className="h-8 object-contain"
+            />
+
+          </div>
+
+        </div>
+        <div className="flex items-center gap-2">
+
+          <div className="relative">
+
+            <input
+              type="text"
+              inputMode="numeric"
+              placeholder="Order ID"
+              value={searchId}
+              onChange={(e) => {
+                const value = e.target.value;
+
+                if (/^\d{0,6}$/.test(value)) {
+                  setSearchId(value);
+                }
+              }}
+              className="border px-2 py-1 pr-7 text-sm rounded w-24 focus:outline-none"
+            />
+
+            {searchId && (
+              <button
+                onClick={() => setSearchId("")}
+                className="absolute right-1 top-1/2 -translate-y-1/2 text-gray-500 hover:text-black"
+              >
+                <X size={14} />
+              </button>
+            )}
+
+          </div>
+
+          <select
+            value={searchStatus}
+            onChange={(e) => setSearchStatus(e.target.value)}
+            className="border px-0 py-1 text-sm rounded"
+          >
+            <option value="pending">Pending</option>
+            <option value="confirmed">Confirmed</option>
+            <option value="preparing">Preparing</option>
+            <option value="ready">Ready</option>
+          </select>
+
+        </div>
 
         <div className="flex items-center gap-3">
-          <div className="flex flex-wrap gap-3 md:flex-nowrap">
+          <div className="hidden md:flex flex-wrap gap-3 md:flex-nowrap">
 
             <span className="font-semibold text-sm">
               {kitchenStatus === "online" ? "Online" : "Offline"}
@@ -474,7 +594,7 @@ function App() {
             <div
               onClick={toggleKitchen}
               className={`w-14 h-7 flex items-center rounded-full p-1 cursor-pointer transition-all duration-300
-      ${kitchenStatus === "online" ? "bg-green-500" : "bg-gray-400"}`}
+        ${kitchenStatus === "online" ? "bg-green-500" : "bg-gray-400"}`}
             >
               <div
                 className={`bg-white w-5 h-5 rounded-full shadow-md transform transition-all duration-300
@@ -486,7 +606,7 @@ function App() {
 
           <button
             onClick={() => setShowAddItem(true)}
-            className="bg-green-600 text-white px-4 py-2 rounded"
+            className="bg-green-600 text-white px-2 py-1 rounded hidden md:block"
           >
             Add Item
           </button>
@@ -496,12 +616,29 @@ function App() {
               setShowStockManager(true);
               fetchMenu();
             }}
-            className="bg-black text-white px-4 py-2 rounded"
+            className="bg-black text-white px-2 py-1 rounded"
           >
             Manage Stock
           </button>
 
         </div>
+
+      </div>
+      <div className="flex justify-center md:justify-start gap-2 mb-4 overflow-x-auto">
+
+        {["all", "pending", "confirmed", "preparing", "ready"].map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-2 py-1 rounded-full text-sm capitalize whitespace-nowrap transition-all block md:hidden 
+        ${activeTab === tab
+                ? "bg-black text-white"
+                : "bg-gray-200 text-gray-700 hover:bg-gray-300"
+              }`}
+          >
+            {tab}
+          </button>
+        ))}
 
       </div>
       {orders.length === 0 && (
@@ -520,63 +657,98 @@ function App() {
       {orders.length > 0 && (
         <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-10">
 
-          {["pending", "confirmed", "preparing", "ready"].map((status) => {
-            const ordersList = groupedOrders[status];
+          {(
+            activeTab === "all"
+              ? ["pending", "confirmed", "preparing", "ready"]
+              : [activeTab]
+          ).map((status) => {
+            let ordersList = groupedOrders[status];
+
+            // ⭐ apply search ONLY on selected status
+            if (searchId && status === searchStatus) {
+              ordersList = ordersList.filter(order =>
+                order.orderId
+                  .toString()
+                  .toLowerCase()
+                  .includes(searchId.toLowerCase())
+              );
+            }
             let ordersToRender = ordersList;
 
             if (status === "preparing") {
-              ordersToRender = orders.filter(o =>
+              ordersToRender = ordersList.filter(o =>
                 o.status === "preparing" &&
-                o.items.some(i => !i.cookingReady)
+                o.items.some(i => !i.cookingReady && !i.rejected)
               );
             }
 
             if (status === "ready") {
-              ordersToRender = orders.filter(o =>
-                o.status === "preparing" || o.status === "ready"
-              ).filter(o =>
+              let baseList = [
+                ...groupedOrders["preparing"],
+                ...groupedOrders["ready"]
+              ];
+
+              // ⭐ search apply ONLY if ready selected
+              if (searchId && searchStatus === "ready") {
+                baseList = baseList.filter(order =>
+                  order.orderId
+                    .toString()
+                    .toLowerCase()
+                    .includes(searchId.toLowerCase())
+                );
+              }
+
+              ordersToRender = baseList.filter(o =>
                 o.items.some(i => i.cookingReady)
               );
             }
 
             return (
-              <div key={status} className="bg-gray-200 rounded-lg p-4 min-h-[400px]">
-                <h2 className="text-lg font-bold mb-4 capitalize text-center">
+              <div key={status} className=" flex flex-col h-[90vh] bg-gray-200 rounded-lg p-0">
+                <h2 className="text-lg font-bold mb-1 capitalize text-center">
                   {status} ({ordersToRender.length})
                 </h2>
 
-                <div className="space-y-4">
+                <div className="space-y-4 overflow-y-auto pt-3 px-2 flex-1 hide-scrollbar">
 
                   {ordersToRender.map((order) => {
-                    const allServed = order.items.every(i => i.served);
+                    const isEditingThis =
+                      editingOrder?.id === order._id;
+                    const isEditingPreparing =
+                      editingOrder?.id === order._id &&
+                      editingOrder?.status === "preparing" &&
+                      status === "preparing";
+                    const allServed = order.items
+                      .filter(i => !i.rejected)
+                      .every(i => i.served);
                     const readyItems = order.items.filter(
-                      i => i.cookingReady && !i.served
+                      i => i.cookingReady && !i.served && !i.rejected
                     );
                     const itemsToShow =
-  status === "preparing"
-    ? order.items
-        .map((item, index) => ({ item, index }))
-        .filter(obj => !obj.item.cookingReady)
+                      status === "preparing"
+                        ? order.items
+                          .map((item, index) => ({ item, index }))
+                          .filter(obj => !obj.item.cookingReady && !obj.item.rejected)
 
-    : status === "ready"
-    ? order.items
-        .map((item, index) => ({ item, index }))
-        .filter(obj => obj.item.cookingReady)
+                        : status === "ready"
+                          ? order.items
+                            .map((item, index) => ({ item, index }))
+                            .filter(obj => obj.item.cookingReady && !obj.item.rejected)
 
-    : order.items.map((item, index) => ({ item, index }));
+                          : order.items.map((item, index) => ({ item, index }));
 
                     return (
 
                       <div
                         key={order._id}
-                        className={`p-4 rounded-lg shadow relative transition-all duration-300
-${getCardStyle(order.status)}
+                        className={`p-2 rounded-lg shadow relative transition-all duration-300
+${getCardStyle(getDisplayStatus(order))}
 ${openStatusId === order._id ? "z-50" : "z-0"}
 `}
                       >
 
                         {order.status === "pending" && (
-                          <div className="absolute -top-3 -left-3 bg-red-700 text-white text-xs px-3 py-1 rounded-full animate-pulse shadow-lg">
+                          <div className="absolute -top-2 -left-2 bg-red-700 text-white text-xs px-3 py-1 rounded-full animate-pulse shadow-lg">
                             🚨 NEW
                           </div>
                         )}
@@ -602,85 +774,191 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
                               : "text-gray-600"
                               }`}
                           >
-                            {getTimerLabel(order.status)}: {getElapsedTime(getStageStartTime(order))} min
+                            {getTimerLabel(getDisplayStatus(order))}: {getElapsedTime(getStageStartTime(order))} min
                           </span>
 
                         </div>
 
-                        <div className="mt-2">
-                          <div className="mt-2">
+                        <div className="mt-1">
+                          <div className="mt-1">
 
                             {
-                              itemsToShow.map(({ item, index }) => {
+                              editingOrder?.id === order._id &&
+                                editingOrder?.status === status
+                                ? editedItems
+                                  .filter(item => !item.rejected)
+                                  .map((item, index) => (
+                                    <div
+                                      key={index}
+                                      className="flex justify-between items-center text-xs py-[2px] px-1 leading-tight"
+                                    >
 
-                                const isNewItem = !item.confirmed;
+                                      {/* LEFT */}
+                                      <div className="flex items-center gap-1">
 
-                                const isReady = item.cookingReady;
-
-                                return (
-                                  <div
-                                    key={`${order._id}-${index}`}
-                                    className={`flex justify-between items-center text-sm p-1 rounded
-      ${isNewItem ? "bg-yellow-200 border border-yellow-500 animate-pulse" : ""}
-`}
-                                  >
-
-                                    <span className="flex items-center gap-2">
-
-                                      {status === "preparing" && !item.cookingReady && item.confirmed && (
-  <button
-    onClick={() => markItemReady(order._id, index)}
-    className="bg-green-500 text-white text-xs px-2 py-1 rounded"
-  >
-    Ready
-  </button>
-)}
-
-                                      <span className="flex items-center gap-1">
-
-                                        {item.name} x {item.qty}
-                                      </span>
-                                      {status === "ready" && item.cookingReady && (
                                         <button
-                                          disabled={item.served}
-                                          onClick={() => markItemServed(order._id, index)}
-                                          className={`text-xs px-2 py-1 rounded text-white
-  ${item.served ? "bg-gray-400 cursor-not-allowed" : "bg-purple-600"}`}
+                                          onClick={() => {
+                                            const updated = [...editedItems];
+                                            if (updated[index].qty > 1) {
+                                              updated[index].qty -= 1;
+                                              setEditedItems(updated);
+                                            }
+                                          }}
+                                          className="px-[4px] py-[1px] bg-gray-300 rounded text-xs"
                                         >
-                                          Served
+                                          -
                                         </button>
-                                      )}
-                                    </span>
 
-                                    <div className="flex items-center gap-2">
+                                        <span>{item.name} ({item.qty})</span>
 
-
-                                      {isNewItem && (
                                         <button
-  onClick={() => confirmItem(order._id, index)}
-  className="bg-orange-500 text-white text-[10px] px-2 py-[2px] rounded"
->
-  Confirm
-</button>
-                                      )}
-                                      <span className="font-semibold">
-                                        ₹{item.price * item.qty}
-                                      </span>
+                                          onClick={() => {
+                                            const updated = [...editedItems];
+                                            updated[index].qty += 1;
+                                            setEditedItems(updated);
+                                          }}
+                                          className="px-1 bg-gray-300 rounded"
+                                        >
+                                          +
+                                        </button>
+
+                                      </div>
+
+                                      {/* RIGHT */}
+                                      <div className="flex items-center gap-1">
+
+                                        <button
+                                          onClick={() => {
+                                            const updated = editedItems.filter((_, i) => i !== index);
+                                            setEditedItems(updated);
+                                          }}
+                                          className="w-8 h-8 flex items-center justify-center text-red-500 hover:bg-red-300 rounded-full transition"
+                                        >
+                                          <Trash2 size={14} />
+                                        </button>
+
+                                        <span>₹{item.price * item.qty}</span>
+
+                                      </div>
 
                                     </div>
+                                  ))
 
-                                  </div>
-                                );
+                                : itemsToShow.map(({ item, index }) => {
 
-                              })}
+                                  // ✅ IMPORTANT: tumhara existing code SAME rahega
+
+                                  const isNewItem = !item.confirmed;
+                                  const isReady = item.cookingReady;
+                                  const isRejected = item.rejected
+
+                                  return (
+                                    <div
+                                      key={`${order._id}-${index}`}
+                                      className={`flex justify-between items-center text-sm p-1 rounded
+  ${isNewItem ? "bg-yellow-200 border border-yellow-500 animate-pulse" : ""}
+  ${isRejected ? "bg-red-200 line-through opacity-70" : ""}
+`}
+                                    >
+
+                                      <span className="flex items-center gap-2">
+
+                                        {status === "preparing" &&
+                                          !item.cookingReady &&
+                                          item.confirmed &&
+                                          !isEditingPreparing && (
+                                            <button
+                                              onClick={() => markItemReady(order._id, index)}
+                                              className="bg-green-400 text-white text-xs px-2 py-1 rounded transition-all duration-200 hover:scale-105 active:scale-95 shadow-md hover:bg-green-500"
+                                            >
+                                              Ready
+                                            </button>
+                                          )}
+
+                                        {item.name} x {item.qty}
+
+                                        {status === "ready" && item.cookingReady && (
+                                          <button
+                                            disabled={item.served}
+                                            onClick={() => markItemServed(order._id, index)}
+                                            className={`text-white text-xs px-2 py-1 rounded ${item.served
+                                              ? "bg-gray-400 cursor-not-allowed "
+                                              : "bg-purple-600 hover:bg-purple-700 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md hover:shadow-lg"
+                                              }`}
+                                          >
+                                            Served
+                                          </button>
+                                        )}
+
+                                      </span>
+
+                                      <div className="flex items-center gap-2">
+
+                                        {isNewItem && !isRejected && !isEditingThis && (
+                                          <button
+                                            onClick={() =>
+                                              setConfirmItemAction({
+                                                orderId: order._id,
+                                                index
+                                              })
+                                            }
+                                            className="bg-orange-500 text-white text-xs px-2 py-[2px] rounded"
+                                          >
+                                            Confirm
+                                          </button>
+                                        )}
+
+                                        <span>₹{item.price * item.qty}</span>
+
+                                      </div>
+
+                                    </div>
+                                  );
+                                })
+                            }
+                            {editingOrder?.id === order._id &&
+                              editingOrder?.status === status && (
+                                <div className="flex gap-2 mt-3">
+
+                                  <button
+                                    onClick={async () => {
+                                      await fetch(`${BASE_URL}/api/orders/${order._id}/update-items`, {
+                                        method: "PUT",
+                                        headers: {
+                                          "Content-Type": "application/json"
+                                        },
+                                        body: JSON.stringify({ items: editedItems })
+                                      });
+
+                                      setEditingOrder(null);
+                                      setEditedItems([]);
+                                      fetchOrders(); // safe
+                                    }}
+                                    className="bg-green-600 text-white px-3 py-1 rounded text-xs"
+                                  >
+                                    Save
+                                  </button>
+
+                                  <button
+                                    onClick={() => {
+                                      setEditingOrder(null);
+                                      setEditedItems([]);
+                                    }}
+                                    className="bg-gray-400 text-white px-3 py-1 rounded text-xs"
+                                  >
+                                    Cancel
+                                  </button>
+
+                                </div>
+                              )}
                           </div>
                         </div>
-                        <div className="relative mt-4">
-                          <div className="flex justify-between items-center mt-4">
+                        <div className="relative mt-1">
+                          <div className="flex justify-between items-center mt-1">
 
-                            <div className="flex gap-2 mt-2">
+                            <div className="flex gap-2 mt-1">
 
-                              {order.status === "pending" && (
+                              {order.status === "pending" && !isEditingThis && (
                                 <>
                                   <button
                                     onClick={() => {
@@ -688,7 +966,7 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
                                       setStatusAction("confirmed");
                                       setShowStatusModal(true);
                                     }}
-                                    className="bg-orange-500 text-white px-2 py-[3px] rounded text-xs flex-1"
+                                    className="bg-orange-500 text-white px-2 py-[3px] rounded text-xs flex-1 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
                                   >
                                     Confirm
                                   </button>
@@ -699,8 +977,7 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
                                       setStatusAction("cancelled");
                                       setShowStatusModal(true);
                                     }}
-
-                                    className="bg-red-500 text-white px-2 py-[3px] rounded text-xs flex-1"
+                                    className="bg-red-500 text-white px-2 py-[3px] rounded text-xs flex-1 transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
                                   >
                                     Cancel
                                   </button>
@@ -710,25 +987,12 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
                               {order.status === "confirmed" && (
                                 <button
                                   onClick={() => updateStatus(order._id, "preparing")}
-                                  className="bg-blue-500 text-white px-2 py-[3px] rounded text-xs w-full"
+                                  className="bg-blue-500 hover:bg-blue-600 text-white px-2 py-[3px] rounded text-xs w-full 
+             transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
                                 >
                                   Preparing
                                 </button>
                               )}
-
-                              {/* {order.status === "preparing" && (
-                                <button
-                                  disabled={readyItems.length === 0}
-                                  onClick={() => updateStatus(order._id, "ready")}
-                                  className={`px-2 py-[3px] rounded text-xs w-full
- ${readyItems.length === 0
-                                      ? "bg-gray-300 cursor-not-allowed"
-                                      : "bg-green-500 text-white"
-                                    }`}
-                                >
-                                  Ready
-                                </button>
-                              )} */}
 
                               {order.status === "ready" && (
                                 <button
@@ -740,10 +1004,14 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
                               )}
 
                             </div>
-
+                            {/* GST CALCULATION */}
                             <span className="font-bold text-sm bg-gray-100 px-3 py-1 rounded">
                               Total:
-                              ₹{order.items.reduce((t, i) => t + i.qty * i.price, 0)}
+                              ₹{(
+                                order.items
+                                  .filter(i => !i.rejected)
+                                  .reduce((t, i) => t + i.qty * i.price, 0) * 1.05
+                              ).toFixed(2)}
                             </span>
 
                           </div>
@@ -770,6 +1038,31 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
                               </button>
                             )}
 
+                            {/* ✅ EDIT BUTTON YAHAN */}
+                            {order.paymentStatus !== "paid" && (
+                              <button
+                                onClick={() => {
+                                  setEditingOrder({
+                                    id: order._id,
+                                    status: status
+                                  });
+                                  setEditedItems(
+                                    JSON.parse(JSON.stringify(order.items))
+                                      .filter(item => !item.rejected)
+                                  );
+                                }}
+                                className="bg-black text-white px-2 py-1 text-xs rounded"
+                              >
+                                Edit
+                              </button>
+                            )}
+
+                            {order.paymentStatus === "paid" && (
+                              <span className="text-xs text-red-500 font-bold">
+                                🔒 Locked
+                              </span>
+                            )}
+
                           </div>
                         </div>
 
@@ -785,80 +1078,89 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
         </div>)}
 
       {/* 🔥 COMPLETED & CANCELLED SECTION BELOW */}
-      {orders.length > 0 && (
-        <div className="bg-gray-300 rounded-lg p-6">
-          <h2 className="text-xl font-bold mb-6 text-center">
-            Completed & Cancelled Orders
-          </h2>
-          <div className="bg-gray-300 rounded-lg p-6">
+      {orders.length > 0 && activeTab === "all" && (
+  <div className="bg-gray-300 rounded-lg p-2">
+    
+    <h2 className="text-xl font-bold mb-4 text-center">
+      Completed & Cancelled Orders
+    </h2>
 
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
-            {["completed", "cancelled"].map((status) => {
-              const ordersList = groupedOrders[status];
+      {["completed", "cancelled"].map((status) => {
+        const ordersList = groupedOrders[status];
 
+        return (
+          <div key={status} className="bg-white p-3 rounded-lg shadow">
 
-              return (
-                <div key={status}>
-                  <h3 className="font-bold mb-3 capitalize">
-                    {status} ({ordersList.length})
-                  </h3>
+            <h3 className="font-bold mb-3 capitalize text-center">
+              {status} ({ordersList.length})
+            </h3>
 
-                  <div className="space-y-3">
-                    {ordersList.map((order) => (
-                      <div
-                        key={order._id}
-                        className={`p-4 rounded-lg shadow relative ${getCardStyle(order.status)}`}
-                      >
-                        {/* Status Badge */}
-                        <div className={`absolute top-3 right-3 px-2 py-1 text-xs rounded-full font-semibold ${getStatusColor(order.status)}`}>
-                          {order.status}
-                        </div>
+            <div className="space-y-3 max-h-[400px] overflow-y-auto">
 
-                        <h4 className="font-bold mb-1">
-                          Table: {order.table}
-                        </h4>
+              {ordersList.map((order) => (
+                <div
+                  key={order._id}
+                  className={`p-3 rounded-lg shadow ${getCardStyle(getDisplayStatus(order))}`}
+                >
 
-                        <p className="text-sm text-gray-600 mb-2">
-                          Order ID: {order.orderId}
-                        </p>
+                  <div className="flex justify-between items-center">
+                    <h4 className="font-bold">
+                      Table: {order.table}
+                    </h4>
 
-                        {/* Items List */}
-                        <div className="mt-2 space-y-1">
-                          {order.items.map((item, index) => (
-                            <p key={index} className="text-sm">
-                              {item.name} x {item.qty}
-                            </p>
-                          ))}
-                        </div>
-                        <p className="mt-2 text-sm font-semibold">
-                          Payment Status:
-                          <span className={
-                            order.paymentStatus === "paid"
-                              ? "text-green-600 ml-2"
-                              : "text-red-600 ml-2"
-                          }>
-                            {order.paymentStatus}
-                          </span>
-                        </p>
+                    <span className={`px-2 py-1 text-xs rounded ${getStatusColor(order.status)}`}>
+                      {order.status}
+                    </span>
+                  </div>
 
-                        {/* Delete Button */}
+                  <p className="text-sm text-gray-500">
+                    Order ID: {order.orderId}
+                  </p>
 
-                        <button
-                          onClick={() => deleteOrder(order._id)}
-
-                          className="bg-red-600 text-white px-3 py-1 rounded text-sm w-full mt-4"
-                        >
-                          Delete Order
-                        </button>
-                      </div>
+                  {/* ITEMS */}
+                  <div className="mt-2 space-y-1">
+                    {order.items.map((item, index) => (
+                      <p key={index} className="text-sm">
+                        {item.name} x {item.qty}
+                      </p>
                     ))}
                   </div>
+
+                  {/* PAYMENT */}
+                  <p className="mt-2 text-sm font-semibold">
+                    Payment:
+                    <span className={
+                      order.paymentStatus === "paid"
+                        ? "text-green-600 ml-2"
+                        : "text-red-600 ml-2"
+                    }>
+                      {order.paymentStatus}
+                    </span>
+                  </p>
+
+                  {/* DELETE */}
+                  <button
+                    onClick={() => deleteOrder(order._id)}
+                    className="bg-red-600 text-white px-3 py-1 rounded text-sm w-full mt-3"
+                  >
+                    Delete
+                  </button>
+
                 </div>
-              );
-            })}
+              ))}
+
+            </div>
 
           </div>
-        </div>)}
+        );
+      })}
+
+    </div>
+
+  </div>
+)}
       {showStockManager && (
 
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-center justify-center z-50">
@@ -1187,7 +1489,59 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
         </div>
 
       )}
+      {confirmItemAction && (
+        <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50">
+          <div className="bg-white p-6 rounded-xl text-center w-72 shadow-xl">
 
+            <p className="mb-4 font-semibold">
+              Accept this item?
+            </p>
+
+            <div className="flex justify-center gap-3">
+
+              {/* NO */}
+              <button
+                onClick={async () => {
+
+                  await fetch(
+                    `${BASE_URL}/api/orders/${confirmItemAction.orderId}/reject-item`,
+                    {
+                      method: "PUT",
+                      headers: { "Content-Type": "application/json" },
+                      body: JSON.stringify({
+                        itemIndex: confirmItemAction.index
+                      })
+                    }
+                  );
+
+                  setConfirmItemAction(null);
+                }}
+                className="px-4 py-1 bg-red-500 text-white rounded"
+              >
+                No
+              </button>
+
+              {/* YES */}
+              <button
+                onClick={async () => {
+
+                  await confirmItem(
+                    confirmItemAction.orderId,
+                    confirmItemAction.index
+                  );
+
+                  setConfirmItemAction(null);
+                }}
+                className="px-4 py-1 bg-green-500 text-white rounded"
+              >
+                Yes
+              </button>
+
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
 
   );

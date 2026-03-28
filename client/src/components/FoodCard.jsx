@@ -22,8 +22,14 @@ export default function FoodCard({
 
   return (
     <>
-      <div className={`shadow-lg rounded-xl p-3 relative 
-${item.available ? "bg-white" : "bg-gray-200 opacity-70"}`}>
+      <div
+  onClick={(e) => {
+  e.stopPropagation(); // ⭐ ADD THIS
+  item.available && setShowModal(true);
+}}
+  className={`shadow-lg rounded-xl p-3 relative cursor-pointer active:scale-95 transition 
+  ${item.available ? "bg-white" : "bg-gray-200 opacity-70"}`}
+>
   {!item.available && (
 <div className="absolute top-2 left-2 bg-red-600 text-white text-xs px-2 py-1 rounded">
 Out of Stock
@@ -48,7 +54,10 @@ Out of Stock
 
         <button
 disabled={!item.available}
-onClick={() => item.available && setShowModal(true)}
+onClick={(e) => {
+  e.stopPropagation(); // ⭐ ADD THIS
+  item.available && setShowModal(true);
+}}
 className={`mt-2 w-full py-1 rounded-lg 
 ${item.available 
 ? "bg-black text-white" 

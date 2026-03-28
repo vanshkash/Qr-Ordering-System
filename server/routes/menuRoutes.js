@@ -68,7 +68,6 @@ router.put("/:id/toggle-stock", async (req, res) => {
 
 });
 
-// DELETE MENU ITEM
 // DELETE MENU ITEM (FINAL)
 router.delete("/:id", async (req, res) => {
   try {

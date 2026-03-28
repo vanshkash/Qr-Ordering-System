@@ -1,6 +1,22 @@
+// routes/orderRoutes.js
 const express = require("express");
 const router = express.Router();
 const Order = require("../models/order");
+
+router.get("/kitchen-status", (req, res) => {
+  const status = req.app.get("kitchenStatus") || "online";
+  res.json({ status });
+});
+router.post("/kitchen-status", (req, res) => {
+  const { status } = req.body;
+
+  req.app.set("kitchenStatus", status);
+
+  const io = req.app.get("io");
+  io.emit("kitchenStatusUpdated", status); // 🔥 ADD THIS
+
+  res.json({ status });
+});
 
 // ⭐ ADD THIS FUNCTION HERE
 async function generateOrderId() {
@@ -71,7 +87,8 @@ router.post("/", async (req, res) => {
 
       const newItems = items.map(item => ({
   ...item,
-  confirmed: false
+  confirmed: false,
+  // isEditing: false // 🔥 ADD
 }));
 
 existingOrder.items.push(...newItems);
@@ -88,7 +105,8 @@ existingOrder.items.push(...newItems);
 
     const itemsWithConfirm = items.map(item => ({
   ...item,
-  confirmed: true
+  confirmed: true,
+  // isEditing: false // 🔥 ADD THIS
 }));
 
 const newOrder = new Order({
@@ -97,7 +115,7 @@ const newOrder = new Order({
   items: itemsWithConfirm,
   status: "pending",
   sessionId,
-  confirmedItems: items.length
+  // confirmedItems: items.length
 });
 
     const savedOrder = await newOrder.save();
@@ -151,13 +169,25 @@ router.put("/:id/add-items", async (req, res) => {
     const { items } = req.body;
 
     const order = await Order.findById(req.params.id);
+    const status = req.app.get("kitchenStatus");
+
+    if (status === "offline") {
+      return res.status(503).json({
+        message: "Kitchen is offline"
+      });
+    }
 
     if (!order) {
       return res.status(404).json({ message: "Order not found" });
     }
 
     // Append new items
-    order.items.push(...items);
+    const newItems = items.map(item => ({
+  ...item,
+  confirmed: false
+}));
+
+order.items.push(...newItems);
 
     await order.save();
     // ✅ ADD HERE
@@ -170,34 +200,6 @@ router.put("/:id/add-items", async (req, res) => {
   }
 });
 
-// PUT - Confirm New Items (Kitchen)
-router.put("/:id/confirm-items", async (req, res) => {
-
-  try {
-
-    const order = await Order.findById(req.params.id);
-
-    if (!order) {
-      return res.status(404).json({ message: "Order not found" });
-    }
-
-    // ⭐ yaha main logic hai
-    order.confirmedItems = order.items.length;
-
-    await order.save();
-
-    const io = req.app.get("io");
-    io.emit("orderUpdated", order);
-
-    res.json(order);
-
-  } catch (error) {
-
-    res.status(500).json({ message: "Error confirming items" });
-
-  }
-
-});
 // DELETE ORDER
 router.delete("/:id", async (req, res) => {
   try {
@@ -225,7 +227,9 @@ router.put("/:id/mark-paid", async (req, res) => {
   }
 
   order.paymentStatus = "paid";
-  await order.save();
+order.status = "completed"; // ⭐ IMPORTANT
+
+await order.save();
 
   const io = req.app.get("io");
   io.emit("orderUpdated", order);
@@ -236,15 +240,16 @@ router.put("/:id/mark-paid", async (req, res) => {
 router.put("/:id/item-ready", async (req, res) => {
 
   const { itemIndex } = req.body;
-
   const order = await Order.findById(req.params.id);
 
   order.items[itemIndex].cookingReady = true;
 
   await order.save();
 
-  res.json(order);
+  const io = req.app.get("io");
+  io.emit("orderUpdated", order); // ⭐ ADD THIS
 
+  res.json(order);
 });
 router.put("/:id/item-served", async (req, res) => {
 
@@ -281,5 +286,81 @@ router.put("/:id/confirm-item", async (req, res) => {
 
   res.json(order);
 
+});
+router.put("/:id/remove-item", async (req, res) => {
+  try {
+    const { itemIndex } = req.body;
+
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // 🔥 remove item
+    order.items.splice(itemIndex, 1);
+
+    await order.save();
+
+    const io = req.app.get("io");
+    io.emit("orderUpdated", order);
+
+    res.json(order);
+
+  } catch (error) {
+    res.status(500).json({ message: "Error removing item" });
+  }
+});
+// ⭐ NEW: Update full items (ADMIN EDIT)
+router.put("/:id/update-items", async (req, res) => {
+  try {
+    const { items } = req.body;
+
+    const order = await Order.findById(req.params.id);
+
+    if (!order) {
+      return res.status(404).json({ message: "Order not found" });
+    }
+
+    // 🔒 PAYMENT LOCK
+    if (order.paymentStatus === "paid") {
+      return res.status(400).json({
+        message: "Order already paid — cannot edit"
+      });
+    }
+
+    // ✅ Replace full items array
+    order.items = items;
+
+    await order.save();
+
+    // 🔥 SOCKET UPDATE
+    const io = req.app.get("io");
+    io.emit("orderUpdated", order);
+
+    res.json(order);
+
+  } catch (error) {
+    res.status(500).json({ message: "Error updating order items" });
+  }
+});
+router.put("/:id/reject-item", async (req, res) => {
+  const { itemIndex } = req.body;
+
+  const order = await Order.findById(req.params.id);
+
+  if (!order) {
+    return res.status(404).json({ message: "Order not found" });
+  }
+
+  // ❌ reject mark karo
+  order.items[itemIndex].rejected = true;
+
+  await order.save();
+
+  const io = req.app.get("io");
+  io.emit("orderUpdated", order); // 🔥 customer update
+
+  res.json(order);
 });
 module.exports = router;

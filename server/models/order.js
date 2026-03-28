@@ -41,6 +41,10 @@ const orderSchema = new mongoose.Schema(
         confirmed: {
   type: Boolean,
   default: false
+},
+rejected: {
+  type: Boolean,
+  default: false
 }
       }
     ],
@@ -65,10 +69,10 @@ const orderSchema = new mongoose.Schema(
       index: true
     },
 
-    confirmedItems: {
-      type: Number,
-      default: 0
-    }
+    // confirmedItems: {
+    //   type: Number,
+    //   default: 0
+    // }
 
   },
   

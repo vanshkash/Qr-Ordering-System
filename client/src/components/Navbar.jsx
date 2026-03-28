@@ -76,7 +76,7 @@ const { tableId } = useParams();
 
     <div className="sticky top-0 z-50 bg-white border-b shadow-sm">
 
-      <div className="flex items-center justify-between px-4 py-3">
+      <div className="flex items-center justify-between px-4 py-1">
 
         {/* LEFT : LOGO + NAME */}
         <div className="flex items-center gap-2">
