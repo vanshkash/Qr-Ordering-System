@@ -13,12 +13,11 @@ router.post("/kitchen-status", (req, res) => {
   req.app.set("kitchenStatus", status);
 
   const io = req.app.get("io");
-  io.emit("kitchenStatusUpdated", status); // 🔥 ADD THIS
+  io.emit("kitchenStatusUpdated", status); 
 
   res.json({ status });
 });
 
-// ⭐ ADD THIS FUNCTION HERE
 async function generateOrderId() {
 
   let orderId;
@@ -77,7 +76,7 @@ router.post("/", async (req, res) => {
 
     const { table, items, sessionId } = req.body;
 
-    // ⭐ check existing order
+    // check existing order
     let existingOrder = await Order.findOne({
       sessionId,
       status: { $nin: ["completed", "cancelled"] }
@@ -88,7 +87,6 @@ router.post("/", async (req, res) => {
       const newItems = items.map(item => ({
   ...item,
   confirmed: false,
-  // isEditing: false // 🔥 ADD
 }));
 
 existingOrder.items.push(...newItems);
@@ -100,13 +98,12 @@ existingOrder.items.push(...newItems);
       return res.json(existingOrder);
     }
 
-    // ⭐ create new order
+    //  create new order
     const orderId = await generateOrderId();
 
     const itemsWithConfirm = items.map(item => ({
   ...item,
   confirmed: true,
-  // isEditing: false // 🔥 ADD THIS
 }));
 
 const newOrder = new Order({
@@ -115,7 +112,6 @@ const newOrder = new Order({
   items: itemsWithConfirm,
   status: "pending",
   sessionId,
-  // confirmedItems: items.length
 });
 
     const savedOrder = await newOrder.save();
@@ -142,7 +138,6 @@ router.put("/:id", async (req, res) => {
       { status },
       { new: true }
     );
-    // ✅ ADD HERE
     const io = req.app.get("io");
     io.emit("orderUpdated", updatedOrder);
 
@@ -153,7 +148,7 @@ router.put("/:id", async (req, res) => {
 });
 
 
-// ✅ GET - All Orders
+// GET - All Orders
 router.get("/", async (req, res) => {
   try {
     const orders = await Order.find().sort({ createdAt: -1 });
@@ -190,7 +185,6 @@ router.put("/:id/add-items", async (req, res) => {
 order.items.push(...newItems);
 
     await order.save();
-    // ✅ ADD HERE
     const io = req.app.get("io");
     io.emit("orderUpdated", order);
 
@@ -209,7 +203,7 @@ router.delete("/:id", async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // 🔥 Optional: Emit socket update
+    // Optional: Emit socket update
     const io = req.app.get("io");
     io.emit("orderDeleted", deletedOrder._id);
 
@@ -227,7 +221,7 @@ router.put("/:id/mark-paid", async (req, res) => {
   }
 
   order.paymentStatus = "paid";
-order.status = "completed"; // ⭐ IMPORTANT
+order.status = "completed"; 
 
 await order.save();
 
@@ -247,7 +241,7 @@ router.put("/:id/item-ready", async (req, res) => {
   await order.save();
 
   const io = req.app.get("io");
-  io.emit("orderUpdated", order); // ⭐ ADD THIS
+  io.emit("orderUpdated", order); 
 
   res.json(order);
 });
@@ -297,7 +291,7 @@ router.put("/:id/remove-item", async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // 🔥 remove item
+    //  remove item
     order.items.splice(itemIndex, 1);
 
     await order.save();
@@ -311,7 +305,7 @@ router.put("/:id/remove-item", async (req, res) => {
     res.status(500).json({ message: "Error removing item" });
   }
 });
-// ⭐ NEW: Update full items (ADMIN EDIT)
+//  NEW: Update full items (ADMIN EDIT)
 router.put("/:id/update-items", async (req, res) => {
   try {
     const { items } = req.body;
@@ -322,19 +316,19 @@ router.put("/:id/update-items", async (req, res) => {
       return res.status(404).json({ message: "Order not found" });
     }
 
-    // 🔒 PAYMENT LOCK
+    //  PAYMENT LOCK
     if (order.paymentStatus === "paid") {
       return res.status(400).json({
         message: "Order already paid — cannot edit"
       });
     }
 
-    // ✅ Replace full items array
+    // Replace full items array
     order.items = items;
 
     await order.save();
 
-    // 🔥 SOCKET UPDATE
+    //  SOCKET UPDATE
     const io = req.app.get("io");
     io.emit("orderUpdated", order);
 
@@ -353,13 +347,12 @@ router.put("/:id/reject-item", async (req, res) => {
     return res.status(404).json({ message: "Order not found" });
   }
 
-  // ❌ reject mark karo
   order.items[itemIndex].rejected = true;
 
   await order.save();
 
   const io = req.app.get("io");
-  io.emit("orderUpdated", order); // 🔥 customer update
+  io.emit("orderUpdated", order); // customer update
 
   res.json(order);
 });

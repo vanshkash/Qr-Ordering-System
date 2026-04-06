@@ -22,7 +22,7 @@ app.use("/api/combos", comboRoutes);
 app.set("kitchenStatus", "offline");
 
 
-// 🔥 SOCKET.IO
+//  SOCKET.IO
 const io = new Server(server, {
   cors: {
     origin: "*",

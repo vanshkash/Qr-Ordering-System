@@ -37,6 +37,14 @@ export default function Menu({ search, setMenuItems }) {
 
   const readyCount = validItems.filter(i => i.cookingReady).length;
   const total = validItems.length;
+  const lastShownStatusRef = useRef(null);
+  const autoShowStatus = () => {
+  setShowTracking(true);
+
+  setTimeout(() => {
+    setShowTracking(false);
+  }, 3000);
+};
   const getDisplayStatus = (order) => {
     if (!order) return "";
     const validItems = order.items.filter(i => !i.rejected);
@@ -60,27 +68,19 @@ export default function Menu({ search, setMenuItems }) {
         if ((!data || data.status === "completed") && !alreadyShown) {
           setShowWelcome(true);
 
-          // ⭐ mark as shown for this session
+          //  mark as shown for this session
           sessionStorage.setItem("welcomeShown", "true");
         }
 
       })
       .catch(() => { });
   }, []);
-  // useEffect(() => {
-  //   // const alreadyShown = localStorage.getItem("welcomeShown");
-
-  //   if (!alreadyShown) {
-  //     setShowWelcome(true);
-  //     localStorage.setItem("welcomeShown", "true");
-  //   }
-  // }, []);
   useEffect(() => {
     fetch(`${BASE_URL}/api/menu`)
       .then(res => res.json())
       .then(data => {
         setMenu(data);
-        setMenuItems(data);   // ⭐ important
+        setMenuItems(data);
       });
   }, []);
   const groupedMenu = menu.reduce((acc, item) => {
@@ -185,7 +185,7 @@ export default function Menu({ search, setMenuItems }) {
         setPlacingOrder(false);
         return;
       }
-      setOrderData(updatedOrder); // 🔥 ADD THIS
+      setOrderData(updatedOrder);
       setCart([]);
       setToast(orderData ? "Additional Items Sent" : "Order Placed Successfully");
       setPlacingOrder(false);
@@ -215,6 +215,26 @@ export default function Menu({ search, setMenuItems }) {
     }
     const audio = new Audio(sound);
     audio.play().catch(() => { });
+    // VIBRATION
+  if ("vibrate" in navigator) {
+    switch (status) {
+      case "confirmed":
+        navigator.vibrate(100); // light
+        break;
+
+      case "preparing":
+        navigator.vibrate([100, 50, 100]); // medium
+        break;
+
+      case "ready":
+        navigator.vibrate([200, 100, 200]); // strong 
+        break;
+
+      case "cancelled":
+        navigator.vibrate([300, 100, 300]); // alert
+        break;
+    }
+  }
   };
   useEffect(() => {
     const sessionId = localStorage.getItem("sessionId");
@@ -234,17 +254,17 @@ export default function Menu({ search, setMenuItems }) {
     socketRef.current = io(BASE_URL);
     socketRef.current.on("kitchenStatusUpdated", (status) => {
       if (status === "online") {
-        setKitchenClosed(false);   // ✅ message hata dega
+        setKitchenClosed(false);   
       } else {
-        setKitchenClosed(true);    // ❌ message dikhayega
+        setKitchenClosed(true);    
       }
     });
-    // 🔥 JOIN TABLE ROOM
+    //  JOIN TABLE ROOM
     socketRef.current.emit("joinTable", Number(tableId));
 
     socketRef.current.on("orderUpdated", (updated) => {
 
-  // 🔥 AUTO CLOSE CANCEL MODAL (same rehne do)
+  //  AUTO CLOSE CANCEL MODAL
   setConfirmAction(prev => {
     if (!prev) return prev;
 
@@ -258,6 +278,41 @@ export default function Menu({ search, setMenuItems }) {
   });
 
   setOrderData((prevOrder) => {
+    // ONLY FOR FRESH ORDER + LIMITED STATUS
+const allowedStatuses = ["pending", "confirmed", "preparing"];
+
+if (prevOrder) {
+
+  // 🔹 STATUS CHANGE (pending, confirmed, preparing)
+  if (
+    updated.status !== prevOrder.status &&
+    ["pending", "confirmed", "preparing"].includes(updated.status) &&
+    lastShownStatusRef.current !== updated.status
+  ) {
+    autoShowStatus();
+    playStatusSound(updated.status);
+
+    lastShownStatusRef.current = updated.status;
+  }
+
+  //  FIRST ITEM READY (MOST IMPORTANT )
+  const oldReady = prevOrder.items.filter(i => i.cookingReady).length;
+  const newReady = updated.items.filter(i => i.cookingReady).length;
+
+  if (
+    oldReady === 0 &&
+    newReady > 0 &&
+    lastShownStatusRef.current !== "first-ready"
+  ) {
+    autoShowStatus();
+    playStatusSound("ready");
+
+    lastShownStatusRef.current = "first-ready";
+  }
+  if (updated._id !== prevOrder._id) {
+  lastShownStatusRef.current = null;
+}
+}
 
     if (!prevOrder) return updated;
 
@@ -283,6 +338,17 @@ export default function Menu({ search, setMenuItems }) {
       setTimeout(() => setToast(null), 2000);
       return null;
     }
+    if (updated.status === "cancelled") {
+  setOrderData(null);
+  setCart([]);
+  setToast("❌ Order Cancelled by Restaurant");
+
+  playStatusSound("cancelled");
+
+  setTimeout(() => setToast(null), 3000);
+
+  return null;
+}
 
     const oldItems = prevOrder.items.map(i => ({
       name: i.name,
@@ -341,7 +407,7 @@ export default function Menu({ search, setMenuItems }) {
       return { ...prev, items: updatedItems };
     });
 
-    // 🔥 2. BACKEND CALL (background)
+    // 2. BACKEND CALL (background)
     await fetch(`${BASE_URL}/api/orders/${orderData._id}/remove-item`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
@@ -349,6 +415,7 @@ export default function Menu({ search, setMenuItems }) {
     });
 
   };
+  
 
   const totalPrice = orderedTotal + newTotal;
   const gst = totalPrice * 0.05;
@@ -604,7 +671,7 @@ ${highlightOrderBtn ? "animate-pulse scale-105 shadow-lg" : ""}
                               ❌Sorry Unavailable
                             </p>
                           )}
-                          {/* 🔥 CONDITION */}
+                          {/*  CONDITION */}
                           <div className="flex items-center gap-2">
 
                             {(orderData?.status === "pending" || !item.confirmed) && !item.rejected && (
@@ -663,7 +730,7 @@ ${highlightOrderBtn ? "animate-pulse scale-105 shadow-lg" : ""}
                       {/* RIGHT SIDE */}
                       <div className="flex items-center gap-3">
 
-                        {/* 🔥 STEPPER */}
+                        {/* STEPPER */}
                         <div className="flex items-center bg-red-500 text-white rounded-lg overflow-hidden text-sm">
 
                           <button
@@ -894,7 +961,7 @@ ${highlightOrderBtn ? "animate-pulse scale-105 shadow-lg" : ""}
                   {/* STATUS TEXT */}
                   <div className="mb-4">
 
-                    {/* 🔥 STATUS TEXT */}
+                    {/*  STATUS TEXT */}
                     <p className="font-semibold mb-2 text-lg">
 
                       {getDisplayStatus(orderData) === "pending" && "Waiting for Kitchen"}
@@ -909,21 +976,21 @@ ${highlightOrderBtn ? "animate-pulse scale-105 shadow-lg" : ""}
 
                     </p>
 
-                    {/* 🔴 PENDING */}
+                    {/*  PENDING */}
                     {getDisplayStatus(orderData) === "pending" && (
                       <div className="mt-2 text-red-500 animate-pulse text-sm">
                         Please wait... your order is being reviewed
                       </div>
                     )}
 
-                    {/* 🟠 CONFIRMED */}
+                    {/* CONFIRMED */}
                     {getDisplayStatus(orderData) === "confirmed" && (
                       <div className="mt-2 text-orange-500 text-sm">
                         Kitchen has accepted your order
                       </div>
                     )}
 
-                    {/* 🟡 PREPARING (spinner) */}
+                    {/* PREPARING (spinner) */}
                     {getDisplayStatus(orderData) === "preparing" && (
                       <div className="flex flex-col items-center mt-3">
 
@@ -936,7 +1003,7 @@ ${highlightOrderBtn ? "animate-pulse scale-105 shadow-lg" : ""}
                       </div>
                     )}
 
-                    {/* 🟡 PARTIAL (already done) */}
+                    {/*  PARTIAL (already done) */}
                     {getDisplayStatus(orderData) === "partial" && (
                       <div className="w-full">
 
@@ -956,7 +1023,7 @@ ${highlightOrderBtn ? "animate-pulse scale-105 shadow-lg" : ""}
                       </div>
                     )}
 
-                    {/* 🟢 READY */}
+                    {/*  READY */}
                     {getDisplayStatus(orderData) === "ready" && (
                       <div className="mt-3">
 

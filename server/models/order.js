@@ -27,13 +27,10 @@ const orderSchema = new mongoose.Schema(
           type: Number,
           required: true
         },
-        // ⭐ NEW FIELD
         cookingReady: {
           type: Boolean,
           default: false
         },
-
-        // ⭐ NEW FIELD
         served: {
           type: Boolean,
           default: false

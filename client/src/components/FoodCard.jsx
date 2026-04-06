@@ -24,7 +24,7 @@ export default function FoodCard({
     <>
       <div
   onClick={(e) => {
-  e.stopPropagation(); // ⭐ ADD THIS
+  e.stopPropagation(); 
   item.available && setShowModal(true);
 }}
   className={`shadow-lg rounded-xl p-3 relative cursor-pointer active:scale-95 transition 
@@ -55,7 +55,7 @@ Out of Stock
         <button
 disabled={!item.available}
 onClick={(e) => {
-  e.stopPropagation(); // ⭐ ADD THIS
+  e.stopPropagation(); 
   item.available && setShowModal(true);
 }}
 className={`mt-2 w-full py-1 rounded-lg 
@@ -67,11 +67,11 @@ ${item.available
 </button>
       </div>
 
-      {/* 🔥 MODAL */}
+      {/*  MODAL */}
       {showModal && (
         <div className="fixed inset-0 bg-black bg-opacity-40 flex items-end justify-center z-50">
 
-          {/* 🔥 BOTTOM SHEET */}
+          {/* BOTTOM SHEET */}
           <div className="bg-white w-full max-w-md rounded-t-3xl shadow-2xl animate-slideUp">
 
             {/* CLOSE BUTTON */}
@@ -140,7 +140,7 @@ ${item.available
 
             </div>
 
-            {/* 🔥 FIXED BOTTOM BAR */}
+            {/*  FIXED BOTTOM BAR */}
             <div className="flex items-center justify-between p-4 border-t bg-white">
 
               {/* +/- BUTTON */}

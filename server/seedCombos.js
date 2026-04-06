@@ -6,7 +6,7 @@ const Menu = require("./models/Menu");
 async function seed() {
   await mongoose.connect(process.env.MONGO_URI);
 
-  // Menu items find karo
+  // find menu items by name to get their IDs for the combos
   const paneer = await Menu.findOne({ name: "Paneer Tikka" });
   const coke = await Menu.findOne({ name: "Coke" });
   const fries = await Menu.findOne({ name: "Peri Peri Fries" });
@@ -15,14 +15,14 @@ async function seed() {
   const rumali = await Menu.findOne({ name: "Rumali Roti" });
   const afgani = await Menu.findOne({ name: "Afgani Chap" });
 
-  // Purane combos delete
+  // delete existing combos
   await Combo.deleteMany();
 
   // New combos insert
   await Combo.insertMany([
     {
       name: "Afgani Chap + Rumali Roti",
-      price: 253, // apne hisaab se set karo
+      price: 253,
       ordered: "90+ customers",
       items: [
         { menuItemId: afgani._id, variant: "Full" },

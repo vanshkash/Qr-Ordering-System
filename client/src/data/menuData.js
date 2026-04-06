@@ -1,3 +1,6 @@
+// Sample menu data for the restaurant- can be used for testing and development purposes
+
+
 // export const comboData = [
 //   {
 //     id: 1,

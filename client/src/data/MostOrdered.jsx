@@ -200,7 +200,7 @@ export default function MostOrdered({ addToCart }) {
 
                         {selectedCombo.items.map((item, index) => {
 
-                            if (!item.menuItemId) return null; // ⭐ MAIN FIX
+                            if (!item.menuItemId) return null;
 
 
                             const selectedVariant =

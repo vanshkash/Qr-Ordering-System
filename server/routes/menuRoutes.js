@@ -1,7 +1,7 @@
 const express = require("express");
 const router = express.Router();
 const Menu = require("../models/Menu");
-const Combo = require("../models/Combo"); // ⭐ add this
+const Combo = require("../models/Combo");
 
 
 // GET ALL MENU

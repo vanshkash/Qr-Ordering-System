@@ -43,6 +43,20 @@ function App() {
 
   };
   useEffect(() => {
+  const unlockAudio = () => {
+    if (audioRef.current) {
+      audioRef.current.play().then(() => {
+        audioRef.current.pause();
+        audioRef.current.currentTime = 0;
+      }).catch(() => {});
+    }
+
+    document.removeEventListener("click", unlockAudio);
+  };
+
+  document.addEventListener("click", unlockAudio);
+}, []);
+  useEffect(() => {
     fetch(`${BASE_URL}/api/orders/kitchen-status`)
       .then(res => res.json())
       .then(data => setKitchenStatus(data.status));
@@ -58,7 +72,7 @@ function App() {
   }, []);
   const markItemServed = async (orderId, itemIndex) => {
 
-    // ✅ 1. INSTANT UI UPDATE
+    //  1. INSTANT UI UPDATE
     setOrders(prev =>
       prev.map(order => {
         if (order._id !== orderId) return order;
@@ -70,7 +84,7 @@ function App() {
       })
     );
 
-    // ✅ 2. BACKEND CALL
+    //  2. BACKEND CALL
     await fetch(`${BASE_URL}/api/orders/${orderId}/item-served`, {
       method: "PUT",
       headers: {
@@ -125,7 +139,7 @@ function App() {
     const data = await res.json();
 
 
-    // 🔔 Detect brand new orders
+    //  Detect brand new orders
     if (previousOrdersRef.current.length > 0) {
       const oldIds = previousOrdersRef.current.map(o => o._id);
 
@@ -214,10 +228,10 @@ function App() {
         throw new Error("Failed to add item");
       }
 
-      // 🔥 MENU RELOAD
+      //  MENU RELOAD
       await fetchMenu();
 
-      // 🔥 RESET FORM
+      //  RESET FORM
       setNewItem({
         name: "",
         category: "",
@@ -273,7 +287,7 @@ function App() {
 
   const updateStatus = async (id, status) => {
 
-    // ⭐ save stage start time
+    //  save stage start time
     const stageTimes = JSON.parse(localStorage.getItem("stageTimes") || "{}");
 
     stageTimes[id] = new Date().toISOString();
@@ -288,51 +302,19 @@ function App() {
 
     fetchOrders();
   };
-  const markPaid = async (id) => {
+ const markPaid = async (id) => {
+  try {
+    await fetch(`${BASE_URL}/api/orders/${id}/mark-paid`, {
+      method: "PUT"
+    });
 
-    try {
+    setToast("Payment Completed ");
+    setTimeout(() => setToast(null), 2000);
 
-      await fetch(`${BASE_URL}/api/orders/${id}/mark-paid`, {
-        method: "PUT"
-      });
-
-      // ⭐ force ready state
-      await fetch(`${BASE_URL}/api/orders/${id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({ status: "ready" })
-      });
-
-      fetchOrders();
-
-      setToast("Payment Completed 💳");
-
-      setTimeout(() => setToast(null), 2000);
-
-      // ⭐ AUTO COMPLETE AFTER 4 SEC
-      setTimeout(async () => {
-
-        await fetch(`${BASE_URL}/api/orders/${id}`, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({ status: "completed" })
-        });
-
-        fetchOrders();
-
-      }, 4000);
-
-    } catch (error) {
-
-      console.error("Payment update failed", error);
-
-    }
-
-  };
+  } catch (error) {
+    console.error("Payment update failed", error);
+  }
+};
 
   const confirmItem = async (orderId, itemIndex) => {
 
@@ -361,10 +343,16 @@ function App() {
     }
   };
   const playNewOrderSound = () => {
-    if (audioRef.current) {
-      audioRef.current.play().catch(() => { });
-    }
-  };
+  if (audioRef.current) {
+    audioRef.current.currentTime = 0;
+    audioRef.current.play().catch(() => {});
+  }
+
+  // 📳 VIBRATION (ADD THIS )
+  if ("vibrate" in navigator) {
+    navigator.vibrate([300, 100, 300, 100, 400]); // strong alert 🚨
+  }
+};
   const getStatusColor = (status) => {
     switch (status) {
       case "pending":
@@ -466,18 +454,25 @@ function App() {
     const socket = io(BASE_URL);
 
     socket.on("orderUpdated", (updatedOrder) => {
-      setOrders(prev => {
-        const exists = prev.find(o => o._id === updatedOrder._id);
 
-        if (exists) {
-          return prev.map(o =>
-            o._id === updatedOrder._id ? updatedOrder : o
-          );
-        } else {
-          return [updatedOrder, ...prev];
-        }
-      });
-    });
+  setOrders(prev => {
+    const exists = prev.find(o => o._id === updatedOrder._id);
+
+    //  NEW ORDER DETECT (IMPORTANT )
+    if (!exists && updatedOrder.status === "pending") {
+      playNewOrderSound();
+    }
+
+    if (exists) {
+      return prev.map(o =>
+        o._id === updatedOrder._id ? updatedOrder : o
+      );
+    } else {
+      return [updatedOrder, ...prev];
+    }
+  });
+
+});
 
     socket.on("orderDeleted", (deletedId) => {
       setOrders(prev => prev.filter(o => o._id !== deletedId));
@@ -845,9 +840,6 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
                                   ))
 
                                 : itemsToShow.map(({ item, index }) => {
-
-                                  // ✅ IMPORTANT: tumhara existing code SAME rahega
-
                                   const isNewItem = !item.confirmed;
                                   const isReady = item.cookingReady;
                                   const isRejected = item.rejected
@@ -902,7 +894,7 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
                                                 index
                                               })
                                             }
-                                            className="bg-orange-500 text-white text-xs px-2 py-[2px] rounded"
+                                            className="bg-orange-500 text-white text-xs px-2 py-[2px] rounded  transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
                                           >
                                             Confirm
                                           </button>
@@ -1038,7 +1030,6 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
                               </button>
                             )}
 
-                            {/* ✅ EDIT BUTTON YAHAN */}
                             {order.paymentStatus !== "paid" && (
                               <button
                                 onClick={() => {
@@ -1059,7 +1050,7 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
 
                             {order.paymentStatus === "paid" && (
                               <span className="text-xs text-red-500 font-bold">
-                                🔒 Locked
+                                 Locked
                               </span>
                             )}
 
@@ -1077,7 +1068,7 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
 
         </div>)}
 
-      {/* 🔥 COMPLETED & CANCELLED SECTION BELOW */}
+      {/*  COMPLETED & CANCELLED SECTION */}
       {orders.length > 0 && activeTab === "all" && (
   <div className="bg-gray-300 rounded-lg p-2">
     
@@ -1429,14 +1420,14 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
                   setShowDeleteModal(false);
                   setItemToDelete(null);
                 }}
-                className="px-4 py-2 bg-gray-400 text-white rounded"
+                className="px-4 py-2 bg-gray-400 text-white rounded  transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
               >
                 Cancel
               </button>
 
               <button
                 onClick={confirmDeleteItem}
-                className="px-4 py-2 bg-red-600 text-white rounded"
+                className="px-4 py-2 bg-red-600 text-white rounded  transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
               >
                 Delete
               </button>
@@ -1466,21 +1457,21 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
             </p>
 
             <div className="flex justify-center gap-4">
-
-              <button
-                onClick={() => setShowStatusModal(false)}
-                className="px-4 py-2 bg-gray-400 text-white rounded"
-              >
-                No
-              </button>
-
               <button
                 onClick={confirmStatusUpdate}
-                className={`px-4 py-2 text-white rounded ${statusAction === "confirmed" ? "bg-orange-500" : "bg-red-600"
+                className={`px-4 py-2 text-white rounded ${statusAction === "confirmed" ? "bg-orange-500  transition-all duration-200 hover:scale-105 active:scale-95 shadow-md" : "bg-red-600  transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
                   }`}
               >
                 Yes
               </button>
+
+              <button
+                onClick={() => setShowStatusModal(false)}
+                className="px-4 py-2 bg-gray-400 text-white rounded  transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
+              >
+                No
+              </button>
+
 
             </div>
 
@@ -1499,6 +1490,21 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
 
             <div className="flex justify-center gap-3">
 
+              {/* YES */}
+              <button
+                onClick={async () => {
+
+                  await confirmItem(
+                    confirmItemAction.orderId,
+                    confirmItemAction.index
+                  );
+
+                  setConfirmItemAction(null);
+                }}
+                className="px-4 py-1 bg-green-500 text-white rounded transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
+              >
+                Yes
+              </button>
               {/* NO */}
               <button
                 onClick={async () => {
@@ -1516,26 +1522,11 @@ ${openStatusId === order._id ? "z-50" : "z-0"}
 
                   setConfirmItemAction(null);
                 }}
-                className="px-4 py-1 bg-red-500 text-white rounded"
+                className="px-4 py-1 bg-red-500 text-white rounded transition-all duration-200 hover:scale-105 active:scale-95 shadow-md"
               >
                 No
               </button>
 
-              {/* YES */}
-              <button
-                onClick={async () => {
-
-                  await confirmItem(
-                    confirmItemAction.orderId,
-                    confirmItemAction.index
-                  );
-
-                  setConfirmItemAction(null);
-                }}
-                className="px-4 py-1 bg-green-500 text-white rounded"
-              >
-                Yes
-              </button>
 
             </div>
 

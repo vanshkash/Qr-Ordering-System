@@ -30,7 +30,7 @@
     opacity: 0;
   }
 
-  /* 🚀 FAST ENTRY */
+  /*  FAST ENTRY */
   15% {
     transform: translateY(10px);
     opacity: 1;
@@ -40,13 +40,13 @@
     transform: translateY(0);
   }
 
-  /* ⏸️ PAUSE */
+  /*  PAUSE */
   65% {
     transform: translateY(0);
     opacity: 1;
   }
 
-  /* 🪄 SMOOTH EXIT */
+  /*  SMOOTH EXIT */
   100% {
     transform: translateY(120%);
     opacity: 0;
